@@ -1,43 +1,74 @@
 # APOLLO 13: MISSION CRITICAL
 
-A real-time Mission Control crisis simulator in a single HTML file. No frameworks, no build step, no audio files, no images — just one document and the Web Audio API.
+**A real-time Mission Control crisis simulator built on real NASA data.**
 
-**You are the Flight Director.** April 13, 1970, 55:52:00 Ground Elapsed Time. In about three minutes, oxygen tank 2 in the Service Module explodes, and the next 87 hours of three men's lives belong to you.
+April 13, 1970, 55:54:53 Ground Elapsed Time. Oxygen tank 2 in the Service Module explodes 200,000 miles from Earth. You are not an astronaut — you are the **Flight Director** in Mission Operations Control Room 2, Houston. Three men are alive at the other end of a radio loop, and for the next 87 hours every watt, every ounce of water, every breath of air, and every tenth of a degree of trajectory belongs to you.
 
-**[► Play it](https://YOURUSERNAME.github.io/apollo13-mission-critical/)** · works on desktop and mobile · sound on
+This is not a story *inspired by* Apollo 13. It is the mission's own arithmetic, running live, with you in the chair.
+
+**[► PLAY THE LIVE DEMO](https://prajith-vishnu.github.io/apollo13-mission-critical)** — sound on, desktop or mobile, ~20 minutes, saves automatically.
 
 ---
 
-## What this is
+## Real NASA Data
 
-Not an astronaut game. The ground perspective is the harder, stranger job: solving problems you cannot touch, with numbers on a screen and a 1.4-second speed-of-light delay between you and the people you're keeping alive.
+Every number that governs this simulation is sourced from the historical record:
 
-Four resource systems run simultaneously, in real time, on the real physics couplings:
-
-| System | The real number | The catch |
+| Figure | Value in game | Source |
 |---|---|---|
-| **POWER** | 2,181 ampere-hours in the LM descent batteries | At full draw the ship dies two days before Earth. You decide what goes dark. |
-| **CO₂** | 15 mmHg impairs the crew, 30 kills them | The LM scrubber was rated for 2 men × 2 days. It's carrying 3 men × 4. The spare cartridges are the wrong *shape*. |
-| **WATER** | 6 oz per man per day — the real ration | The tank doesn't mainly feed the crew. It feeds the **sublimator**: the LM cools its electronics by boiling water into space. Every amp you leave running drinks your water. |
-| **TRAJECTORY** | Entry corridor −5.25° to −7.40°, hit from 240,000 miles | The ship drifts shallow continuously — the cooling system itself is a tiny rocket that never shuts off. |
+| LM descent battery capacity | **2,181 ampere-hours** | NASA Apollo 13 Mission Report |
+| CO₂ danger thresholds | **15 mmHg** impairment, **~30 mmHg** fatal | NASA life support documentation |
+| Crew water ration | **6 oz per person per day** (1/5 normal intake) | Space Center Houston historical record |
+| Oxygen tank 2 explosion | **GET 55:54:53** | NASA detailed chronology (NSSDC) |
+| Crew weight loss | **31.5 lbs combined** (Lovell alone lost 14) | NASA post-mission report |
+| Cabin temperature | dropped below **40°F** (to 38°F) during power conservation | NASA Apollo 13 mission details |
+| LM design rating | **2 crew × 2 days** — it carried 3 crew for nearly 4 | NASA Apollo 13 mission details |
+| Oxygen remaining at LM jettison | **28.5 lbs** | NASA Apollo 13 mission details |
+| Splashdown | **GET 142:54:41** | NASA detailed chronology |
 
-Every crisis fires at its **real GET timestamp**: the explosion at 55:54:53, the free-return burn at 61:29:43, PC+2 at 79:27:38, the hand-flown MCC-5 at 105:18:28, "Farewell, Aquarius" at 141:30, splashdown at 142:54:41. Every decision shows you its costs up front, and after you choose, a historical footnote tells you what the real Mission Control did — and what it cost them.
+The crisis events fire at their real GET timestamps: the free-return burn at 61:29:43, PC+2 at 79:27:38, the hand-flown MCC-5 at 105:18:28, "Farewell, Aquarius" at 141:30, the re-entry blackout that ran 87 seconds past prediction. The CO₂ "mailbox" puzzle uses the actual parts list — duct tape, flight-plan cardboard, an LCG stowage bag, a suit hose. The in-game **ABOUT** panel cites all of this from inside the console.
 
-The CO₂ scrubber fix ("the mailbox") is a five-step build using only items verifiably aboard the spacecraft. Wrong materials waste time while the cabin gauge climbs. The real solution — duct tape, flight-plan cardboard, an LCG stowage bag, a suit hose — is the solution here.
+## How To Play
 
-## Engineering notes
+You manage four coupled resource systems simultaneously, in real time:
 
-- **One file.** Game state, simulation, timeline, rendering, audio synth, save system: `index.html`.
-- **Adaptive time compression.** The sim sprints up to ×3000 between milestones and crawls during decisions, so you're never idle more than ~30 seconds. All rates are per *mission*-hour, so compression changes pacing, never outcomes.
-- **Procedural audio.** Master alarm (warbled square wave), Quindar beeps (2525 Hz, like the real ones), band-passed white-noise radio static, telemetry ticks — all synthesized at runtime with the Web Audio API. Zero assets.
-- **Analog gauges** drawn on canvas per frame: zone arcs, tick marks, glowing needle. CRT scanlines, phosphor glow, and vignette in pure CSS.
-- **localStorage saves** — close the tab mid-crisis and the console re-energizes where you left it, including any decision that was on the table.
-- A headless test harness (DOM stubs + JavaScriptCore) drove the full mission through the historical playthrough and three failure paths before release.
+1. **POWER** — 2,181 Ah in the LM batteries. Every system on the bus draws real amps. At full draw the ship dies two days before Earth; you decide what goes dark, switch by switch.
+2. **CO₂** — rises as three men breathe through scrubbers rated for two. At 15 mmHg the crew is impaired; at 30 they die. When the cartridges saturate, you build the adapter yourself, step by step, from what's actually aboard.
+3. **WATER** — the cruel one: the tank mostly feeds the *sublimator*, which cools the electronics by boiling water into space. Every amp you leave running drinks your water. You also set the crew's ration — and pay for it in their performance.
+4. **TRAJECTORY** — the entry corridor is 2.15° wide, hit from 240,000 miles away, and the ship drifts shallow continuously. You authorize burns at fixed windows; their accuracy depends on the condition of the crew you've been keeping cold and thirsty.
 
-## Sources
+Crisis decisions arrive on a countdown (45 seconds; 20 when the border is red). Every option shows a uniform **COST / GAIN / RISK** readout. Choose with the mouse or keys **1–4** — controllers didn't use mice. After you commit, the **HISTORICAL RECORD** reveals what Mission Control actually did in April 1970. Four endings, graded against history, with a full debrief table comparing your numbers to the real mission's.
 
-Mission data from NASA's [Apollo 13 mission details](https://www.nasa.gov/missions/apollo/apollo-13-mission-details/) and the Apollo 13 Mission Operations Report: battery capacity, water budget and ration, CO₂ thresholds, cabin temperature, burn times and magnitudes, crew weight loss, the 28.5 lbs of oxygen left in Aquarius at jettison, and the blackout that ran 87 seconds past prediction. The failure ending quotes William Safire's 1969 contingency address *In Event of Moon Disaster* — drafted for Apollo 11, kept ready for every mission after, never read aloud.
+## Why I Built This
 
-Built for [Hack Club Stardance](https://stardance.hackclub.com). MIT licensed — fly it, fork it, break it, fix it.
+I've always been fascinated by NASA and by real mission data — not the movie version of events, but the actual numbers people had to work with. What grabbed me about Apollo 13 is that it wasn't saved by heroics in the spacecraft; it was saved by arithmetic on the ground, done fast, under pressure, by people who couldn't touch the machine they were fixing. I wanted to build something that taught the real story through gameplay rather than reading — where you don't just learn *that* they rationed water to 6 oz a day, you feel *why*, because the sublimator is drinking your tank and the burn windows are coming. Every number in this game is sourced from real NASA documentation, and the most surprising mechanics (the power–water coupling, the debris field faking the stars, powering up telemetry *last*) are the parts I didn't invent.
 
-*"Let's solve the problem, but let's not make it any worse by guessing."* — Gene Kranz
+## Screenshots
+
+*(coming soon)*
+
+## Tech Stack
+
+Vanilla HTML, CSS, and JavaScript. No frameworks, no build step, no assets — all audio (master alarm, Quindar beeps, radio static, telemetry) is synthesized at runtime with the **Web Audio API**. Analog gauges drawn on canvas. CRT scanlines and phosphor glow in pure CSS. Adaptive time compression keeps something happening every ~30 seconds without ever changing outcomes. Game state persists in localStorage — close the tab mid-crisis and the console re-energizes where you left it.
+
+## Run Locally
+
+```
+git clone https://github.com/prajith-vishnu/apollo13-mission-critical.git
+```
+
+Then open `index.html` in any browser. That's the whole install. (`index.html` is the mission briefing; **[ ASSUME CONSOLE ]** launches the simulator in `game.html`.)
+
+## License
+
+[MIT](LICENSE) — fly it, fork it, break it, fix it.
+
+## Acknowledgements
+
+- NASA historical records and the [Apollo 13 mission details](https://www.nasa.gov/missions/apollo/apollo-13-mission-details/)
+- NASA Apollo 13 Mission Report
+- Space Center Houston
+- NSSDC Apollo 13 Chronology
+- The flight controllers of MOCR 2, April 1970 — *"Let's solve the problem, but let's not make it any worse by guessing."*
+
+Built for [Hack Club Stardance](https://stardance.hackclub.com). See [AI_USAGE.md](AI_USAGE.md) for the AI assistance disclosure.
