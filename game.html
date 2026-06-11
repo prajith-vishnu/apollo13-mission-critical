@@ -69,6 +69,12 @@ body::after{
     rgba(0,0,0,0) 55%, rgba(0,0,0,.55) 100%);
 }
 .flicker{animation:flick .09s infinite;}
+#console.fadein{animation:consfade 1.4s ease-out;}
+@keyframes consfade{from{opacity:0}to{opacity:1}}
+/* the red bloom on whichever gauge just paid for your silence */
+.gauge.hitflash{animation:hitfl .28s 6;}
+@keyframes hitfl{0%,100%{background:rgba(0,20,5,.25)}
+  50%{background:#4d0000;box-shadow:0 0 18px rgba(255,32,32,.65)}}
 @keyframes flick{0%{opacity:1}50%{opacity:.82}100%{opacity:1}}
 @keyframes pulse-red{0%,100%{background:#1a0000}50%{background:#3d0000}}
 @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:.12}}
@@ -266,6 +272,20 @@ body::after{
 }
 @keyframes staticshift{0%{background-position:0 0}100%{background-position:0 7px}}
 
+/* the three seconds that the whole game exists for */
+#finale{
+  display:none;position:fixed;inset:0;z-index:6950;background:#000;
+  flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;gap:26px;padding:20px;
+}
+#finale .fl{
+  font-size:13px;letter-spacing:3px;color:var(--grn);opacity:0;
+  transition:opacity 1.6s ease-in;line-height:1.8;
+}
+#finale .fl.big{font-size:clamp(18px,5vw,28px);letter-spacing:6px;font-weight:700;
+  text-shadow:0 0 18px rgba(0,255,65,.8);}
+#finale .fl.lit{opacity:1;}
+
 #ending{padding:30px 18px;}
 #ending .inner{max-width:780px;margin:0 auto;}
 #ending h1{font-size:20px;letter-spacing:4px;margin-bottom:4px;}
@@ -305,6 +325,10 @@ body::after{
 #comp{font-size:9px;color:var(--amb);letter-spacing:1px;}
 
 /* ============================== MOBILE ================================= */
+#commlog h2{cursor:pointer;}
+#commlog.collapsed .pbody{display:none;}
+#commlog h2 .tag::after{content:' [TAP TO FOLD]';}
+@media (min-width:901px){ #commlog h2 .tag::after{content:'';} }
 @media (max-width:900px){
   body{overflow-y:auto;font-size:12px;}
   #console{height:auto;display:none;grid-template-rows:auto auto;}
@@ -312,6 +336,16 @@ body::after{
   #colC{order:0}#colL{order:1}#colR{order:2}
   #commlog .pbody{max-height:200px;}
   #getclock .big{font-size:16px;}
+}
+@media (max-width:480px){
+  #gauges{grid-template-columns:1fr;}          /* gauges stack vertically */
+  .gauge .gv{font-size:17px;}
+  #decision{max-height:96vh;padding:12px;}
+  #overlay{padding:6px;}
+  .opt{padding:13px 11px;}                     /* fat tap targets */
+  .contbtn,.bigbtn{padding:14px 18px;}
+  .sysbtn{width:62px;padding:6px 0;}
+  #hdr{flex-wrap:wrap;}
 }
 </style>
 </head>
@@ -422,6 +456,9 @@ body::after{
     record of Apollo 13 (April 11&ndash;17, 1970). This is not a story
     "inspired by" the mission &mdash; it is the mission's own arithmetic,
     running live:</p>
+    <p>Unlike historical archives that let you observe Apollo 13, this
+    simulation puts you in command. Your decisions &mdash; not history's
+    &mdash; determine if the crew survives.</p>
     <table class="ab-table">
       <tr><td>LM DESCENT BATTERY CAPACITY</td><td>2,181 AMPERE-HOURS</td></tr>
       <tr><td>CO2 IMPAIRMENT THRESHOLD</td><td>15 MMHG PARTIAL PRESSURE</td></tr>
@@ -452,6 +489,13 @@ body::after{
   <div class="bo-sub" id="botext">ENTRY INTERFACE &mdash; 400,000 FT<br>EXPECTED BLACKOUT: 4 MIN 30 SEC</div>
 </div>
 
+<!-- ====================== SPLASHDOWN FINALE BEAT ======================= -->
+<div id="finale">
+  <div class="fl" id="fl1">APRIL 17, 1970. GET 142:54:41.</div>
+  <div class="fl" id="fl2">USS IWO JIMA HAS VISUAL ON THE CAPSULE.</div>
+  <div class="fl big" id="fl3">THREE MEN. ALIVE.</div>
+</div>
+
 <!-- =========================== ENDING SCREEN =========================== -->
 <div id="ending" class="fullscreen">
   <div class="inner">
@@ -461,6 +505,8 @@ body::after{
     <div id="espeech"></div>
     <table id="debrief"></table>
     <div class="foot" id="efoot" style="margin-bottom:24px"></div>
+    <button class="bigbtn" id="sharebtn" style="border-color:var(--amb);color:var(--amb)"
+      onclick="Game.shareReport()">SHARE MISSION REPORT</button>
     <button class="bigbtn" onclick="Game.scrub(true)">FLY IT AGAIN, FLIGHT</button>
   </div>
 </div>
@@ -1286,6 +1332,7 @@ const PUZZLE = {
         UI.closeDecision();
         AudioEngine.success();
         radio('CAPCOM','"Aquarius, Houston. We see the CO2 coming down. The contraption is working."');
+        log('SCRUBBER ADAPTER COMPLETE. CO2 LEVELS STABILIZING. GOOD WORK, FLIGHT.','radio');
         log('CO2 partial pressure falling: '+S.co2.toFixed(1)+' -> 0.2 mmHg over the next hour. The mailbox - cardboard, a sock-drawer of plastic and tape - just out-engineered the problem.','radio');
         UI.showFootnote('HISTORY: Built in one hour from duct tape, flight-plan cardboard, an LCG stowage bag and a suit hose, to a design by Ed Smylie\'s crew systems team. CO2 fell from near the red line to 0.2 mmHg and never rose again. The crew called it "the mailbox."');
       } else {
@@ -1351,7 +1398,11 @@ const UI = {
   render(){
     if(!S) return;
     $('getval').textContent = fmtGET(S.get);
-    $('comp').textContent = 'TIME COMPRESSION ×'+Math.round(SIM.timeScale);
+    // ~0.9 real min per remaining decision + entry sequence: the honest ETA
+    const evLeft=MISSION.filter(e=>!S.fired[e.id]&&e.options).length;
+    const estMin=Math.max(1,Math.round(evLeft*0.9+(S.fired.entry?0:2)));
+    $('comp').textContent='TIME COMPRESSION ×'+Math.round(SIM.timeScale)
+      +'  ·  ≈'+estMin+' MIN REAL TIME TO SPLASHDOWN';
 
     /* gauges */
     const G='#00FF41', A='#FF8C00', Rd='#FF2020', D='#003A0A';
@@ -1560,10 +1611,29 @@ const UI = {
       const ev=this.decision;
       this.closeDecision();
       S.pendingEvent=null;
-      log('DECISION WINDOW EXPIRED: '+ev.title,'crit');
+      /* inaction has teeth, and it announces itself */
+      const label=(ev.inact||'default consequence applied')
+        .replace(/^INACTION:\s*/i,'').replace(/\.+$/,'');
+      log('FLIGHT — NO CALL RECEIVED. DEFAULTING TO: '+label.toUpperCase()+'. THIS IS ON YOU.','crit');
+      AudioEngine.alarmOn();
+      setTimeout(()=>AudioEngine.alarmOff(),1600);
+      document.body.classList.add('flicker');
+      setTimeout(()=>document.body.classList.remove('flicker'),1200);
+      this.flashGauge(UI.HITMAP[ev.id]);
       if(ev.expire) ev.expire();
       Game.save();
     }
+  },
+  /** which gauge eats the hit when each decision is left to rot */
+  HITMAP:{explosion:'power',venting:'power',lifeboat:'power',powerdown:'power',
+          freereturn:'traj',water:'water',co2warn:'co2',suncheck:'traj',
+          pc2:'traj',drift:'traj',fever:'water',thump:'power',mcc5:'traj',
+          cmplan:'power',mcc7:'traj',smjett:null},
+  flashGauge(k){
+    if(!k) return;
+    const el=$('g-'+k); if(!el) return;
+    el.classList.add('hitflash');
+    setTimeout(()=>el.classList.remove('hitflash'),1900);
   },
 };
 
@@ -1592,7 +1662,7 @@ const Game = {
 'GET 055:52:00 - TRANSLUNAR COAST. 205,000 MILES FROM EARTH.',
 'CAPCOM HAS JUST REQUESTED A CRYO TANK STIR.',
 '',
-'YOU ARE FLIGHT. THE ROOM IS YOURS.',
+'FLIGHT DIRECTOR — YOU HAVE THE CONSOLE.',
   ],
   startBoot(){
     const saved=this.loadRaw();
@@ -1640,7 +1710,11 @@ const Game = {
     }
     $('boot').style.display='none';
     $('console').style.display='grid';
+    $('console').classList.add('fadein');   // the room comes up out of the dark
     UI.init();
+    // flight log folds away on small screens (and anywhere, harmlessly)
+    document.querySelector('#commlog h2').onclick=
+      ()=>$('commlog').classList.toggle('collapsed');
     this.lastT=performance.now();
     this.loop(this.lastT);
     AudioEngine.beep();
@@ -1807,10 +1881,21 @@ const Game = {
         'It was not clean. It was not pretty. Neither was the real one.\n\n'+
         'A successful failure, Flight. The only kind of failure worth having.';
     }
-    AudioEngine.splash();
-    this.showEnding(cls,grade+' - MISSION COMPLETE',title,body,false);
+    /* the beat lands BEFORE the stats: three slow lines out of black,
+       and three full seconds on the one that matters */
+    const fin=$('finale');
+    fin.style.display='flex';
+    ['fl1','fl2','fl3'].forEach(id=>$(id).classList.remove('lit'));
+    setTimeout(()=>$('fl1').classList.add('lit'), 300);
+    setTimeout(()=>{ $('fl2').classList.add('lit'); AudioEngine.beep(); }, 2800);
+    setTimeout(()=>{ $('fl3').classList.add('lit'); AudioEngine.splash(); }, 5400);
+    setTimeout(()=>{
+      fin.style.display='none';
+      this.showEnding(cls,grade+' - MISSION COMPLETE',title,body,false);
+    }, 9400);
   },
   showEnding(cls,tag,title,body,failed){
+    this.lastFailed=failed;
     localStorage.removeItem(this.SAVE_KEY);
     $('console').style.display='none';
     $('overlay').style.display='none';
@@ -1860,6 +1945,32 @@ const Game = {
     AudioEngine.init();
     AudioEngine.setMuted(!AudioEngine.muted);
     $('sndbtn').textContent=AudioEngine.muted?'SND OFF':'SND ON';
+  },
+  /** mission report to clipboard - personal, competitive, real numbers */
+  shareReport(){
+    const alive=!this.lastFailed;
+    const txt=
+      (alive?'I saved Apollo 13 as Flight Director.':'I lost Apollo 13 as Flight Director.')+'\n'+
+      'Power remaining: '+Math.round(clamp(S.lmAh,0,2181)/2181*100)+'% | CO2 peak: '+
+      S.peakCo2.toFixed(1)+'mmHg | Crew: '+(alive?'ALIVE':'LOST')+'\n'+
+      'Every number is real NASA data. Can you do better?\n'+
+      'https://prajith-vishnu.github.io/apollo13-mission-critical\n'+
+      '#Stardance #HackClub #Apollo13';
+    const done=()=>{
+      const b=$('sharebtn');
+      b.textContent='COPIED TO CLIPBOARD ✓';
+      AudioEngine.success();
+      setTimeout(()=>b.textContent='SHARE MISSION REPORT',2500);
+    };
+    const fallback=()=>{
+      const ta=document.createElement('textarea');
+      ta.value=txt; document.body.appendChild(ta); ta.select();
+      try{ document.execCommand('copy'); done(); }catch(e){}
+      ta.remove();
+    };
+    if(navigator.clipboard && navigator.clipboard.writeText)
+      navigator.clipboard.writeText(txt).then(done,fallback);
+    else fallback();
   },
   /** the source-record panel; the sim keeps running underneath */
   toggleAbout(){
