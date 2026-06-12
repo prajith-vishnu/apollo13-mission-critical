@@ -22,7 +22,8 @@
     S           - the single game-state object (saved to localStorage)
     MISSION     - the event timeline, with real GET timestamps
     SIM         - the physics tick: power, CO2, water, trajectory
-    PUZZLE      - the CO2 scrubber adapter ("the mailbox") build sequence
+    SCRUBBER    - the CO2 mailbox build, full-screen - the centerpiece
+    CREWVOICE   - Lovell, Swigert and Haise on the loop between crises
     UI          - canvas gauges, comm log, decision panels, endings
 
   Built for Hack Club Stardance. Open source. Godspeed, Flight.
@@ -69,7 +70,7 @@ body::after{
     rgba(0,0,0,0) 55%, rgba(0,0,0,.55) 100%);
 }
 .flicker{animation:flick .09s infinite;}
-#console.fadein{animation:consfade 1.4s ease-out;}
+#console.fadein{animation:consfade 1s ease-out;}
 @keyframes consfade{from{opacity:0}to{opacity:1}}
 /* the red bloom on whichever gauge just paid for your silence */
 .gauge.hitflash{animation:hitfl .28s 6;}
@@ -79,6 +80,12 @@ body::after{
 @keyframes pulse-red{0%,100%{background:#1a0000}50%{background:#3d0000}}
 @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:.12}}
 .blink{animation:blink 1s step-end infinite;}
+/* decision feedback: the room reacts when a call is on the table */
+body.dimmed #console{filter:brightness(.7);}
+#wflash{position:fixed;inset:0;z-index:9500;background:#fff;opacity:0;pointer-events:none;}
+#wflash.on{opacity:.7;}
+.gauge.attn{animation:attnpulse .55s 3;}
+@keyframes attnpulse{50%{background:rgba(70,40,0,.45);box-shadow:0 0 16px rgba(255,140,0,.55)}}
 
 /* ============================== LAYOUT ================================= */
 #console{
@@ -231,14 +238,30 @@ body::after{
   padding-top:8px;margin-top:4px;line-height:1.5;}
 .foot b{color:var(--grn);}
 
-/* puzzle */
-#pz-build{
-  border:1px dashed var(--grn-mid);padding:8px;margin-bottom:10px;
-  font-size:11px;white-space:pre;line-height:1.35;color:var(--grn);
-  overflow-x:auto;
-}
-.pz-step{font-size:11px;color:var(--amb);letter-spacing:1px;margin-bottom:8px;}
-.pz-strikes{color:var(--red);font-size:11px;margin-bottom:8px;}
+/* ===================== SCRUBBER TAKEOVER (THE MAILBOX) ================= */
+#scrubber{display:none;position:fixed;inset:0;z-index:6600;background:rgba(0,0,0,.96);
+  flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  padding:18px;text-align:center;}
+#sc-alarm{font-size:12px;letter-spacing:3px;color:var(--red);}
+#sc-co2{font-size:clamp(44px,11vw,80px);font-weight:700;letter-spacing:4px;color:var(--red);
+  text-shadow:0 0 34px rgba(255,32,32,.85);animation:pulse-red 1s infinite;}
+#sc-co2.ok{color:var(--grn);text-shadow:0 0 34px rgba(0,255,65,.8);animation:none;}
+#sc-sub{font-size:10px;letter-spacing:2px;color:var(--grn-mid);}
+#sc-msg{font-size:12.5px;color:var(--grn);min-height:54px;max-width:600px;line-height:1.7;white-space:pre-wrap;}
+#sc-inv{font-size:11px;color:var(--amb);line-height:1.9;text-align:left;}
+#sc-parts{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;max-width:660px;}
+.sc-card{font-family:inherit;font-size:11px;font-weight:700;letter-spacing:1px;
+  border:1px solid var(--grn);background:transparent;color:var(--grn);
+  padding:14px 12px;cursor:pointer;min-height:44px;}
+.sc-card:hover{background:rgba(0,255,65,.12);box-shadow:0 0 12px rgba(0,255,65,.35);}
+.sc-card.done{border-color:var(--grn-dim);color:var(--grn-mid);pointer-events:none;background:rgba(0,255,65,.07);}
+.sc-card.good{animation:scgood .5s;}
+.sc-card.bad{animation:scbad .5s;}
+@keyframes scgood{50%{background:var(--grn);color:#000;box-shadow:0 0 22px rgba(0,255,65,.8)}}
+@keyframes scbad{25%,75%{border-color:var(--red);color:var(--red);box-shadow:0 0 16px rgba(255,32,32,.6)}}
+#sc-build{font-size:10px;color:var(--grn-mid);letter-spacing:1px;min-height:14px;max-width:640px;}
+.sc-card .keycap{display:inline-block;border:1px solid var(--grn);padding:0 5px;
+  font-size:10px;margin-right:6px;}
 
 /* ============================ FULL SCREENS ============================= */
 .fullscreen{
@@ -292,6 +315,8 @@ body::after{
 #ending h1.good{color:var(--grn);} #ending h1.bad{color:var(--red);} #ending h1.mid{color:var(--amb);}
 #ending .etag{font-size:11px;color:var(--grn-mid);letter-spacing:2px;margin-bottom:18px;}
 #ending .etext{font-size:12.5px;line-height:1.7;white-space:pre-wrap;margin-bottom:22px;}
+#ending .stage{opacity:0;transition:opacity 2.4s ease;}
+#ending .stage.lit{opacity:1;}
 #debrief{width:100%;border-collapse:collapse;margin-bottom:22px;font-size:11.5px;}
 #debrief th,#debrief td{border:1px solid var(--grn-dim);padding:6px 8px;text-align:left;}
 #debrief th{background:rgba(0,255,65,.07);letter-spacing:1px;font-size:10px;}
@@ -341,25 +366,27 @@ body::after{
 #tutnext:hover{background:var(--grn);color:#000;}
 
 /* ============================== MOBILE ================================= */
-#commlog h2{cursor:pointer;}
-#commlog.collapsed .pbody{display:none;}
+.panel>h2{cursor:pointer;}
+.panel.collapsed .pbody{display:none;}
 #commlog h2 .tag::after{content:' [TAP TO FOLD]';}
 @media (min-width:901px){ #commlog h2 .tag::after{content:'';} }
 @media (max-width:900px){
-  body{overflow-y:auto;font-size:12px;}
+  body{overflow-y:auto;font-size:14px;}        /* +2px for thumbs and sun */
   #console{height:auto;display:none;grid-template-rows:auto auto;}
   #main{grid-template-columns:1fr;}
-  #colC{order:0}#colL{order:1}#colR{order:2}
-  #commlog .pbody{max-height:200px;}
+  #colL{order:0}#colC{order:1}#colR{order:2}   /* flight log rides on top */
+  #commlog .pbody{max-height:220px;font-size:13.5px;}
   #getclock .big{font-size:16px;}
 }
+@media (max-width:768px){
+  #overlay{padding:0;}
+  #decision{width:100%;height:100%;max-height:100vh;padding:14px;}
+  .opt{min-height:44px;padding:13px 11px;}     /* 44px touch targets */
+  .contbtn,.bigbtn{min-height:44px;padding:14px 18px;}
+}
 @media (max-width:480px){
-  #gauges{grid-template-columns:1fr;}          /* gauges stack vertically */
-  .gauge .gv{font-size:17px;}
-  #decision{max-height:96vh;padding:12px;}
-  #overlay{padding:6px;}
-  .opt{padding:13px 11px;}                     /* fat tap targets */
-  .contbtn,.bigbtn{padding:14px 18px;}
+  #gauges{grid-template-columns:1fr 1fr;gap:5px;}  /* keep the 2x2 grid */
+  .gauge .gv{font-size:15px;}
   .sysbtn{width:62px;padding:6px 0;}
   #hdr{flex-wrap:wrap;}
 }
@@ -385,7 +412,7 @@ body::after{
     <div>
       <div class="title">APOLLO 13 // MISSION CRITICAL</div>
       <div class="sub">MOCR 2 &mdash; FLIGHT DIRECTOR CONSOLE &mdash; ODYSSEY / AQUARIUS</div>
-      <div id="comp">TIME COMPRESSION &times;1</div>
+      <div id="comp">TIME COMPRESSION &times;800</div>
     </div>
     <div id="getclock">
       <div class="sub">GROUND ELAPSED TIME</div>
@@ -518,10 +545,29 @@ body::after{
 
 <!-- ====================== SPLASHDOWN FINALE BEAT ======================= -->
 <div id="finale">
-  <div class="fl" id="fl1">APRIL 17, 1970. GET 142:54:41.</div>
-  <div class="fl" id="fl2">USS IWO JIMA HAS VISUAL ON THE CAPSULE.</div>
-  <div class="fl big" id="fl3">THREE MEN. ALIVE.</div>
+  <div class="fl" id="fn0">APRIL 17, 1970.</div>
+  <div class="fl" id="fn1">GET 142:54:41.</div>
+  <div class="fl" id="fn2">USS IWO JIMA &mdash; SOUTH PACIFIC OCEAN.</div>
+  <div class="fl" id="fn3">PARACHUTES CONFIRMED.</div>
+  <div class="fl" id="fn4">IMPACT.</div>
+  <div class="fl big" id="fn5">THREE MEN.</div>
+  <div class="fl big" id="fn6">ALIVE.</div>
+  <div class="fl" id="fn7" style="color:var(--amb)"></div>
 </div>
+
+<!-- ===================== SCRUBBER TAKEOVER SCREEN ====================== -->
+<div id="scrubber">
+  <div id="sc-alarm" class="blink">MASTER ALARM &mdash; CO2 PARTIAL PRESSURE</div>
+  <div id="sc-co2">8.0</div>
+  <div id="sc-sub">MMHG &mdash; 15 IMPAIRS THE CREW. 30 KILLS THEM.</div>
+  <div id="sc-msg"></div>
+  <div id="sc-inv"></div>
+  <div id="sc-parts"></div>
+  <div id="sc-build"></div>
+</div>
+
+<!-- white pop on every committed decision -->
+<div id="wflash"></div>
 
 <!-- =========================== ENDING SCREEN =========================== -->
 <div id="ending" class="fullscreen">
@@ -533,8 +579,8 @@ body::after{
     <table id="debrief"></table>
     <div class="foot" id="efoot" style="margin-bottom:24px"></div>
     <button class="bigbtn" id="sharebtn" style="border-color:var(--amb);color:var(--amb)"
-      onclick="Game.shareReport()">SHARE MISSION REPORT</button>
-    <button class="bigbtn" onclick="Game.scrub(true)">FLY IT AGAIN, FLIGHT</button>
+      onclick="Game.shareReport()">TRANSMIT MISSION REPORT</button>
+    <button class="bigbtn" id="flybtn" onclick="Game.scrub(true)">FLY IT AGAIN, FLIGHT</button>
   </div>
 </div>
 
@@ -603,6 +649,20 @@ const AudioEngine = {
     if(!this.alarmNodes) return;
     this.alarmNodes.forEach(n=>{try{n.stop()}catch(e){}});
     this.alarmNodes=null;
+  },
+  /** the CO2 alarm: lower, slower, uglier than the master alarm */
+  alarmDeep(){
+    if(!this.ctx||this.alarmNodes||this.muted) return;
+    const o = this.ctx.createOscillator(), lfo = this.ctx.createOscillator(),
+          lg = this.ctx.createGain(), gn = this.ctx.createGain();
+    o.type='sawtooth'; o.frequency.value=220;
+    lfo.type='sine'; lfo.frequency.value=1.6;
+    lg.gain.value=60;
+    lfo.connect(lg); lg.connect(o.frequency);
+    gn.gain.value=0.06;
+    o.connect(gn); gn.connect(this.master);
+    o.start(); lfo.start();
+    this.alarmNodes=[o,lfo];
   },
   /** Quindar-style beep that bracketed every real CAPCOM transmission */
   quindar(){ this.tone(2525,0.18,'sine',0.09); },
@@ -675,6 +735,12 @@ function freshState(){
     haiseFever: false,
     /* bookkeeping */
     tutorialDone: false,      // gauge walkthrough shown before first crisis
+    tscale: 800,              // player-set time compression ([ and ] adjust)
+    cond: 75,                 // hidden crew-condition score - never shown
+    voiceFired: {},           // scripted crew transmissions already heard
+    pzUsed: [],               // scrubber cards already locked in
+    lovellInstinct: false,    // took the hidden PC+2 option
+    aaronCall: 'none',        // none | book | aaron | aaronfail
     fired: {},                // event id -> true
     valvesClosed: false,
     cmPowerPlan: 'none',      // aaron | standard | rushed
@@ -1065,6 +1131,17 @@ const MISSION = [
            S.water-=18; S.lmAh-=120; S.dehydration+=8;
            log('FIDO restages the consumable budget for the long ride. It is ugly.','warn'); },
      foot:'Survivable on paper, but it stretched water and power past the comfort of anyone holding a slide rule - and dropped the crew a hemisphere away from the carrier Iwo Jima.'},
+    /* hidden: only a crew in good shape earns you this one */
+    {l:'TRUST LOVELL\'S INSTINCT - FLY IT BY EYE',
+     cond(){ return (S.cond===undefined?75:S.cond)>70; },
+     cost:'deviates from the calculated burn', gain:'Lovell believes he can eyeball a better angle', risk:'could be brilliant or catastrophic',
+     d:'He has flown more hours in more machines than anyone alive, and he is asking you to believe him.',
+     fx(){ S.lmAh-=14; S.water-=5; S.lovellInstinct=true; S.offCourse=false;
+           S.angle = -6.5 + (Math.random()*2-1)*0.05 - 0.3;
+           radio('LOVELL','"Just this once, Houston. Trust me."');
+           log('BURN COMPLETE - TWO SECONDS LONG ON LOVELL\'S CALL. FIDO: "That\'s not in the procedure. ... It worked."','radio');
+           AudioEngine.success(); },
+     foot:'The road not taken: no record of this burn exists. But the shape your crew is in bought you an option history never had - and nobody who flew with Lovell would have bet against his eye.'},
   ],
   expire(){ if(S.offCourse && !S.ended){ Game.die('miss'); return; }
             S.water-=18; S.lmAh-=120; log('PC+2 window expired. Long ride home.','crit'); },
@@ -1150,6 +1227,50 @@ const MISSION = [
   ],
   expire(){ log('Battery 2 left on line by default.','sys'); },
 },
+/* ------------------------------------------------ 105:00 JOHN AARON */
+{
+  id:'aaron', get:g(105,0,0), timer:45, crit:true,
+  title:'EECOM - POWER-UP SEQUENCE ANOMALY',
+  pre(){
+    log('EECOM: "Flight. The procedure calls for this power-up sequence. But if we follow it exactly, we lose 43 ampere-hours we cannot afford to lose."','warn');
+    log('EECOM: "There\'s another way. Reversed sequence. I\'ve seen it work. Once. In a ground test two years ago. Nobody else was there."','warn');
+  },
+  brief:'Re-entry needs Odyssey - and Odyssey has been a frozen, dripping '+
+        'corpse for three days. Her entry batteries hold barely enough as it '+
+        'is.\n\nThe certified power-up order spends 43 ampere-hours you cannot '+
+        'afford. A back-room EECOM named John Aaron is on the loop with a '+
+        'reversed sequence nobody has ever flown: instruments LAST, blind '+
+        'through the checklist. He says he\'s seen it work. Once. On the '+
+        'ground. Two years ago. Nobody else was there.',
+  inact:'INACTION: written procedure by default. The batteries pay for it.',
+  options:[
+    {l:'FOLLOW THE PROCEDURE',
+     cost:'43 ampere-hours', gain:'known outcome, zero improvisation', risk:'may not leave enough power for re-entry',
+     d:'The book was tested and certified. The book it is.',
+     fx(){ S.aaronCall='book'; S.lmAh-=43;
+           log('Standard sequence ordered. 43 ampere-hours gone. EECOM logs it without comment, which is worse than comment.','warn'); },
+     foot:'The certified procedure assumed living fuel cells. On entry batteries alone it was arithmetic the mission could not afford - which is why, in the real April 1970, somebody had to tear it up.'},
+    {l:'TRUST JOHN AARON',
+     cost:'unknown - never done in flight', gain:'43 ampere-hours saved', risk:'could fail catastrophically',
+     d:'Reversed sequence. Instruments last. One ground test, two years ago, and his word.',
+     fx(){
+       const works = (S.cond===undefined?75:S.cond)>70 || Math.random()<0.8;
+       if(works){
+         S.aaronCall='aaron';
+         log('REVERSED SEQUENCE RUNNING... CHARGE IS TAKING. 43 AMPERE-HOURS SAVED.','sys');
+         log('FIDO: "That\'s not in any checklist I\'ve ever seen."','radio');
+         setTimeout(()=>{ if(S && !S.ended) radio('CAPCOM','"John Aaron. Remember that name."'); },2500);
+         AudioEngine.success();
+       } else {
+         S.aaronCall='aaronfail'; S.lmAh-=55;
+         log('REVERSED SEQUENCE TRIPS THE MAIN BUS. TWICE. EECOM goes back to the book - 55 ampere-hours gone recovering.','crit');
+         AudioEngine.caution();
+       }
+     },
+     foot:'Historically real: John Aaron - the "steely-eyed missile man" of Apollo 12 - invented the reversed power-up that fit Odyssey\'s dying batteries, validated overnight in the simulator by Ken Mattingly. It had never existed before that week. It worked almost without a hitch.'},
+  ],
+  expire(){ S.aaronCall='book'; S.lmAh-=43; log('No call. The written procedure spends 43 Ah you wanted back.','crit'); },
+},
 /* ------------------------------------------------ 105:18 MCC-5 */
 {
   id:'mcc5', get:g(105,18,28), timer:40, crit:true,
@@ -1179,41 +1300,6 @@ const MISSION = [
      foot:'FIDO would have fought you to the door of the MOCR over this one.'},
   ],
   expire(){ log('MCC-5 window passed. No trim.','crit'); },
-},
-/* ------------------------------------------------ 118:00 CM POWER-UP PLAN */
-{
-  id:'cmplan', get:g(118,0,0), timer:50, crit:true,
-  title:'ODYSSEY POWER-UP SEQUENCE',
-  brief:'Re-entry needs Odyssey - and Odyssey has been a frozen, dripping-wet '+
-        'corpse for three days. Her entry batteries hold barely enough for '+
-        'reentry; a normal power-up takes 24 hours and 75 amps. You have '+
-        'neither.\n\nJohn Aaron has been locked in a back room for two days '+
-        'inventing a sequence that has never existed. Ken Mattingly - the man '+
-        'bumped from this crew for measles he never caught - is flying every '+
-        'draft in the simulator. Aaron\'s heresy: power up the TELEMETRY LAST. '+
-        'Fly blind through the checklist to save the amps.',
-  inact:'INACTION: standard checklist by default. The batteries decide.',
-  options:[
-    {l:'AARON SEQUENCE - INSTRUMENTS LAST',
-     cost:'15 Ah; the ground flies blind during power-up', gain:'a sequence that fits the entry batteries', risk:'a checklist three days old, never flown',
-     d:'Trust the back room. Trust Mattingly\'s simulator runs. Telemetry comes up last.',
-     fx(){ S.cmPowerPlan='aaron'; S.lmAh-=15;
-           log('Aaron sequence GO. LM power flows uphill through the umbilical to charge Odyssey\'s entry batteries - a direction that hardware was never designed to flow.','sys'); },
-     foot:'All real: Aaron\'s reversed sequence, Mattingly\'s all-night simulator runs, and the LM topping off the CM\'s entry batteries through the umbilical - backwards. The checklist that did not exist three days earlier ran almost without a hitch.'},
-    {l:'STANDARD CHECKLIST ORDER',
-     cost:'~40 Ah - double the battery draw', gain:'a certified, rehearsed procedure', risk:'a dead CM before the drogues fire',
-     d:'The procedure that was tested, certified, and written for a living ship.',
-     fx(){ S.cmPowerPlan='standard'; S.lmAh-=40; S.angle+=(Math.random()*0.2);
-           log('Standard sequence ordered. EECOM watches Odyssey\'s entry batteries sag and says nothing you want to hear.','crit'); },
-     foot:'The certified procedure assumed fuel cells. On batteries alone it was arithmetic suicide - which is why Aaron tore it up.'},
-    {l:'DELAY POWER-UP TO THE LAST HOUR',
-     cost:'crew sprints a brand-new checklist', gain:'battery saved while Odyssey stays dark', risk:'zero margin for one stuck breaker',
-     d:'Every minute Odyssey stays dark is battery saved.',
-     fx(){ S.cmPowerPlan='rushed'; S.lmAh-=10; SIM.hurtCrew(6);
-           log('Power-up compressed to the final hours. Swigert will be reading a brand-new checklist at sprint pace.','warn'); },
-     foot:'Tempting - but the real timeline already WAS the compressed version. Compressing further left zero room for a single stuck breaker.'},
-  ],
-  expire(){ S.cmPowerPlan='standard'; S.lmAh-=40; log('Defaulted to standard checklist. EECOM\'s face says everything.','crit'); },
 },
 /* ------------------------------------------------ 137:39 MCC-7 */
 {
@@ -1281,100 +1367,217 @@ const MISSION = [
 ];
 
 /* ======================================================================
- * CO2 SCRUBBER PUZZLE - "the mailbox". Fires when cabin CO2 crosses
- * 8 mmHg. Five build steps; the wrong material at any step is a strike:
- * + 1.2 mmHg of CO2 and wasted minutes. This is the real procedure.
+ * SCRUBBER - the mailbox, full screen. The most famous improvised repair
+ * in flight history gets the whole stage: a dark room, one red number,
+ * the real parts, the real order - and five seconds of silence when it
+ * works. Do not fill the silence.
  * ==================================================================== */
-const PUZZLE = {
-  steps:[
-    { ask:'STEP 1/5 - THE SCRUBBING ELEMENT.\nThe LM\'s round cartridges are saturated. What actually absorbs the CO2?',
-      art:'      [ LM ECS INLET ]\n            (O)  <- round socket\n\n   ???',
-      good:'cm', items:[
-        ['cm','SQUARE CM LiOH CANISTER','Odyssey\'s shelves are full of fresh ones. Square peg. Round hole. Make it work.'],
-        ['lm','SPARE LM ROUND CARTRIDGE','It fits the socket perfectly.'],
-        ['towel','WET TOWELS OVER THE VENTS','Trap the exhaled air in fabric.']],
-      whyGood:'Correct. The chemistry is identical - lithium hydroxide. Only the SHAPE is wrong, and shape is a solvable problem.',
-      whyBad:{lm:'Every round cartridge aboard is already saturated - that is the whole crisis.',
-              towel:'Towels do nothing to CO2. The cabin keeps climbing while you try.'}},
-    { ask:'STEP 2/5 - THE BAG WILL GET SUCKED FLAT.\nThe plan: seal a bag over the canister and duct the fan through it. But suction will collapse the plastic straight onto the canister face and choke the flow. What goes inside as a standoff?',
-      art:'   [SQUARE CANISTER]\n   plastic bag (planned)\n   PROBLEM: bag collapses -> no flow',
-      good:'card', items:[
-        ['hoseclamp','HOSE CLAMPS','Clamp the bag into shape.'],
-        ['card','FLIGHT PLAN COVER CARDBOARD','Cut a stiff arch to hold the bag off the inlet face.'],
-        ['sock','A CLEAN(ISH) SOCK','Wedge it in as a spacer.']],
-      whyGood:'Correct - the elegant hack inside the hack. A cardboard arch cut from the flight plan cover holds the bag open so air can actually move. The crew was literally told: "rip the cover off your flight plan."',
-      whyBad:{hoseclamp:'There are no hose clamps on the verified loose-equipment list. You cannot build with parts the crew does not have.',
-              sock:'A sock blocks as much flow as it preserves - and you will want it later.'}},
-    { ask:'STEP 3/5 - THE ENCLOSURE.\nThe canister and its cardboard arch need an airtight body that the suit hose can feed into.',
-      art:'   [CANISTER + CARDBOARD ARCH]\n   needs an airtight envelope ->  ???',
-      good:'bag', items:[
-        ['bag','PLASTIC LCG STOWAGE BAG','The bag the liquid-cooled garment shipped in. Big, tough, airtight.'],
-        ['food','FOOD WRAPPERS, TAPED TOGETHER','Plenty of them around.'],
-        ['suit','CUT A PIECE OFF A PRESSURE SUIT','Best airtight fabric on board.']],
-      whyGood:'Correct. One LCG stowage bag, pulled over the whole assembly. (The garment inside was never used - the moonwalks were cancelled. Its BAG helped save the crew.)',
-      whyBad:{food:'A patchwork of greasy wrappers leaks at every seam. The fan just pulls cabin air through the gaps.',
-              suit:'Nobody cuts up a pressure suit they might still need to survive in.'}},
-    { ask:'STEP 4/5 - THE SEAL.\nEvery edge of that bag has to hold against fan suction for three days.',
-      art:'   [CANISTER+ARCH inside BAG]\n   edges leaking ->  seal with ???',
-      good:'tape', items:[
-        ['tape','GRAY DUCT TAPE','A full roll, stowed for the lunar surface.'],
-        ['velcro','VELCRO PATCHES','The spacecraft is covered in it.'],
-        ['wire','SPLICE WIRE, WRAPPED TIGHT','Mechanical compression seal.']],
-      whyGood:'Correct. Duct tape - the most important roll of tape in the history of flight. NASA has stowed it on every mission since Gemini. "You can\'t be in space without duct tape." - Ed Smylie.',
-      whyBad:{velcro:'Velcro grips, it does not SEAL. Air whistles straight through the hooks.',
-              wire:'Wire bites through plastic film. Now there are MORE holes.'}},
-    { ask:'STEP 5/5 - THE AIRFLOW.\nThe sealed box needs the cabin fan pulling air through it. What connects the LM\'s suit-circulation fan to your contraption?',
-      art:'   [SEALED MAILBOX]\n   airflow source ->  ???   -> through canister -> clean air',
-      good:'hose', items:[
-        ['hose','RED SUIT CIRCULATION HOSE','Pulls cabin air via the LM suit fan. Cut a port, tape it in.'],
-        ['vac','WAVE IT NEAR THE CABIN FAN','Passive placement in the airflow.'],
-        ['mouth','CREW BLOWS THROUGH IT IN SHIFTS','Manual ventilation.']],
-      whyGood:'MAILBOX COMPLETE. Hose taped into the bag, suit fan ON...',
-      whyBad:{vac:'Diffuse cabin airflow barely grazes the canister face. Forced flow or nothing.',
-              mouth:'The crew exhaling MORE CO2 into the scrubber assembly. Think about it.'}},
+const SCRUBBER = {
+  active:false, lock:true,
+  CARDS:[                          // shown scrambled; ORDER below is the fix
+    {id:'tape',   l:'DUCT TAPE'},
+    {id:'sock',   l:'CREW SOCK'},
+    {id:'card',   l:'CARDBOARD - FLIGHT MANUAL COVER'},
+    {id:'clampA', l:'HOSE CLAMP No.1'},
+    {id:'bag',    l:'PLASTIC BAG'},
+    {id:'clampB', l:'HOSE CLAMP No.2'},
   ],
-  open(){
-    const st=this.steps[S.pzStep];
-    UI.showDecision({
-      id:'puzzle', title:'BUILD THE MAILBOX - CO2 ADAPTER', crit:S.co2>=13,
-      timer:0, // untimed: the rising CO2 gauge IS the timer
-      brief:'CO2: '+S.co2.toFixed(1)+' mmHg and climbing. 15 impairs the crew. 30 kills them.\n\n'+
-            'Smylie\'s team has a design. You assemble it over the loop, one step at a '+
-            'time, using only what is verifiably aboard.\n\n'+st.art+'\n\n'+st.ask,
-      inact: S.pzStrikes>0 ? 'WASTED MATERIALS: '+S.pzStrikes+' (each mistake = wasted minutes while CO2 climbs)' : 'The gauge is the countdown.',
-      options: st.items.map(it=>({
-        l:it[1], c:'', d:it[2],
-        fx:()=>{ PUZZLE.pick(it[0]); }
-      })),
-      noClose:true,
+  ORDER:['card','bag','tape','clamp','sock','clamp'],   // either clamp fits a clamp step
+  kind(id){ return (id==='clampA'||id==='clampB') ? 'clamp' : id; },
+  STEPTXT:{
+    card:'Cardboard cut from the flight manual cover - the arch that keeps the bag from sucking flat.',
+    bag:'Canister and arch sealed inside the plastic bag.',
+    tape:'Hose connection taped down. Gray tape, stowed for a moonwalk that is not happening.',
+    clamp:'Clamp seated. Hold it. Hold it...',
+    sock:'The last leak plugged with a sock.',
+  },
+  /** PHASE 1 alarm (10 s) -> PHASE 2 problem + inventory (8 s) -> build */
+  begin(resumed){
+    this.active=true; this.lock=true;
+    $('scrubber').style.display='flex';
+    $('sc-co2').classList.remove('ok');
+    $('sc-alarm').style.display='block';
+    $('sc-msg').textContent=''; $('sc-inv').innerHTML='';
+    $('sc-parts').innerHTML=''; $('sc-build').textContent='';
+    AudioEngine.alarmDeep();
+    const q = resumed ? 0.2 : 1;            // a reloaded tab skips the slow burn
+    const h='"Flight... CO2 is at '+S.co2.toFixed(0)+'. We\'re... starting to feel it up here. Everything feels a little slow."';
+    radio('HAISE',h);
+    this.typeMsg('HAISE: '+h);
+    setTimeout(()=>{
+      const s='FLIGHT. CO2 IS CRITICAL. CREW HAS APPROXIMATELY 2 HOURS BEFORE IMPAIRMENT BECOMES SEVERE.';
+      log('SURGEON: '+s,'crit');
+      $('sc-msg').textContent+='\n\nSURGEON: '+s;
+    },7000*q);
+    setTimeout(()=>{
+      const c='"We have a situation. The LM scrubbers use round canisters. The CM scrubbers are square. Square peg. Round hole. We need to make one fit the other using only what the crew has on board."';
+      radio('CAPCOM',c);
+      $('sc-msg').textContent='CAPCOM: '+c;
+      ['AVAILABLE MATERIALS:','&#9656; DUCT TAPE (PARTIAL ROLL)','&#9656; PLASTIC BAGS (2)',
+       '&#9656; CARDBOARD FROM FLIGHT MANUAL COVER','&#9656; TWO RUBBER HOSE CLAMPS',
+       '&#9656; ONE CREW SOCK','&#9656; UTILITY KNIFE']
+        .forEach((t,i)=>setTimeout(()=>{ if(this.active){ $('sc-inv').innerHTML+=t+'<br>'; AudioEngine.key(); } },650*q*i));
+    },10000*q);
+    setTimeout(()=>{
+      $('sc-inv').innerHTML='';
+      $('sc-msg').textContent='ASSEMBLE THE ADAPTER. IN ORDER. THE GAUGE DOES NOT WAIT.';
+      this.renderCards();
+      this.lock=false;
+    },18000*q);
+  },
+  typeMsg(txt){
+    const el=$('sc-msg'); el.textContent='';
+    let i=0;
+    const st=()=>{ if(!this.active||i>=txt.length) return;
+      el.textContent+=txt[i++]; setTimeout(st,28); };
+    st();
+  },
+  renderCards(){
+    const box=$('sc-parts'); box.innerHTML='';
+    this.CARDS.forEach((c,i)=>{
+      const b=document.createElement('button');
+      b.className='sc-card'+(S.pzUsed.includes(c.id)?' done':'');
+      b.innerHTML='<span class="keycap">'+(i+1)+'</span>'+c.l;
+      b.onclick=()=>SCRUBBER.pick(c.id);
+      box.appendChild(b);
     });
+    if(S.pzStep>0)
+      $('sc-build').textContent='ASSEMBLY '+S.pzStep+'/6: '+
+        S.pzUsed.map(u=>this.CARDS.find(c=>c.id===u).l).join(' + ');
   },
   pick(id){
-    const st=this.steps[S.pzStep];
-    if(id===st.good){
-      log('MAILBOX STEP '+(S.pzStep+1)+'/5: '+st.whyGood,'sys');
-      AudioEngine.beep();
-      S.pzStep++;
-      if(S.pzStep>=this.steps.length){
-        S.mailbox=true;
-        UI.closeDecision();
-        AudioEngine.success();
-        radio('CAPCOM','"Aquarius, Houston. We see the CO2 coming down. The contraption is working."');
-        log('SCRUBBER ADAPTER COMPLETE. CO2 LEVELS STABILIZING. GOOD WORK, FLIGHT.','radio');
-        log('CO2 partial pressure falling: '+S.co2.toFixed(1)+' -> 0.2 mmHg over the next hour. The mailbox - cardboard, a sock-drawer of plastic and tape - just out-engineered the problem.','radio');
-        UI.showFootnote('HISTORY: Built in one hour from duct tape, flight-plan cardboard, an LCG stowage bag and a suit hose, to a design by Ed Smylie\'s crew systems team. CO2 fell from near the red line to 0.2 mmHg and never rose again. The crew called it "the mailbox."');
-      } else {
-        this.open();
-      }
+    if(!this.active||this.lock) return;
+    if(S.pzUsed.includes(id)) return;
+    const i=this.CARDS.findIndex(c=>c.id===id);
+    const btn=$('sc-parts').children[i];
+    if(this.kind(id)===this.ORDER[S.pzStep]){
+      S.pzStep++; S.pzUsed.push(id);
+      if(btn){ btn.classList.add('good');
+        setTimeout(()=>{ btn.classList.remove('good'); btn.classList.add('done'); },480); }
+      AudioEngine.confirm();
+      $('sc-msg').textContent='STEP '+S.pzStep+'/6 - '+this.STEPTXT[this.kind(id)];
+      $('sc-build').textContent='ASSEMBLY '+S.pzStep+'/6: '+
+        S.pzUsed.map(u=>this.CARDS.find(c=>c.id===u).l).join(' + ');
+      if(S.pzStep>=this.ORDER.length) this.finish();
     } else {
       S.pzStrikes++;
-      S.co2+=1.2; S.get+=600; // ten wasted minutes, more bad air
-      log('MAILBOX SETBACK: '+ (st.whyBad[id]||'That does not work.') +' (+CO2, 10 min lost)','crit');
-      AudioEngine.caution();
-      if(S.co2>=30){ UI.closeDecision(); Game.die('co2'); return; }
-      this.open();
+      S.co2+=0.5;                            // the gauge is the punishment
+      if(btn){ btn.classList.add('bad'); setTimeout(()=>btn.classList.remove('bad'),520); }
+      AudioEngine.tone(200,0.3,'sine',0.12); // soft, low - not the master alarm
+      $('sc-msg').textContent='NEGATIVE - NOT THAT STEP. CO2 +0.5. TRY AGAIN.';
+      if(S.co2>=30){ this.close(); Game.die('co2'); return; }
     }
-  }
+    Game.save();
+  },
+  /** PHASE 4 - the fix (~15 s). The five seconds of silence are sacred. */
+  finish(){
+    this.lock=true;
+    S.mailbox=true;
+    AudioEngine.alarmOff();
+    $('sc-alarm').style.display='none';
+    $('sc-parts').innerHTML=''; $('sc-build').textContent='';
+    $('sc-co2').classList.add('ok');
+    $('sc-msg').textContent='';
+    const t=(ms,fn)=>setTimeout(fn,ms);
+    t(800,  ()=>{ radio('CAPCOM','"Try it now."');
+                  $('sc-msg').textContent='CAPCOM: "Try it now."'; });
+    t(3800, ()=>{ radio('LOVELL','"It\'s working."');
+                  $('sc-msg').textContent='LOVELL: "It\'s working."'; AudioEngine.success(); });
+    t(5800, ()=>{ radio('LOVELL','"It\'s working, Houston."');
+                  $('sc-msg').textContent='LOVELL: "It\'s working, Houston."'; });
+    /* five seconds of silence. nothing happens. that is the feature. */
+    t(10800,()=>{
+      log('FLIGHT LOG: CO2 SCRUBBER ADAPTER — COMPLETE. CREW SURVIVAL EXTENDED BY ESTIMATED 40 HOURS.','radio');
+      $('sc-msg').textContent='CO2 SCRUBBER ADAPTER — COMPLETE.\nCREW SURVIVAL EXTENDED BY ESTIMATED 40 HOURS.';
+    });
+    t(13300,()=>{
+      this.close();
+      UI.showFootnote('HISTORY: Ed Smylie\'s crew systems team designed the adapter in one day from only what was verifiably aboard, and CAPCOM read the build up step by step over the radio. CO2 fell from near the red line to 0.2 mmHg and never rose again. The crew called it "the mailbox."');
+      Game.save();
+    });
+  },
+  close(){ this.active=false; this.lock=true; $('scrubber').style.display='none'; },
+};
+
+/* ======================================================================
+ * CREW VOICES - eleven scripted transmissions at fixed GETs. Haise's
+ * get shorter and farther apart as he goes downhill; the log never says
+ * why. Each man gets a color so the three read as three people.
+ * ==================================================================== */
+const CREWVOICE = {
+  script:[
+    {get:g(56,10,0),  who:'LOVELL',   txt:'"Houston, we\'re in the LM. It\'s cold up here but we\'re okay. We\'re okay."'},
+    {get:g(58,30,0),  who:'SWIGERT',  txt:'"Flight, this is Swigert. I keep running the power numbers. We\'re going to make it. We have to make it."'},
+    {get:g(61,0,0),   who:'HAISE',    txt:'"Temperature\'s dropped to 45. I\'m fine. Don\'t put me on the sick list yet."'},
+    {get:g(72,0,0),   who:'LOVELL',   txt:'"You know what I keep thinking about? My wife\'s garden. I promised her I\'d fix the fence when I got back."'},
+    {get:g(79,0,0),   who:'SWIGERT',  txt:'"First flight. This is my first flight. Nobody\'s going to believe this."'},
+    {get:g(86,0,0),   who:'HAISE',    txt:'"Still here, Flight."'},
+    {get:g(95,0,0),   who:'LOVELL',   txt:'"Marilyn keeps the faith. She always does. I owe her a better story than this."'},
+    {get:g(100,0,0),  who:'HAISE',    txt:'"Cold."'},
+    {get:g(105,0,0),  who:'SWIGERT',  txt:'"Flight, I want you to know. Whatever happens. You\'ve been good to us up here."'},
+    {get:g(130,0,0),  who:'LOVELL',   txt:'"We\'re going home. I can feel it."'},
+    {get:g(140,0,0),  who:'ALL THREE',txt:'"Houston. We\'re ready."'},
+  ],
+  tick(){
+    if(!S || !S.lmActive || S.ended || UI.decision || SCRUBBER.active) return;
+    for(let i=0;i<this.script.length;i++){
+      const v=this.script[i];
+      if(!S.voiceFired[i] && S.get>=v.get){
+        S.voiceFired[i]=true;
+        radio(v.who, v.txt);
+        break;                       // one voice per beat - let it breathe
+      }
+    }
+  },
+};
+/** voice colors - HAISE's warmth drains as he does */
+function whoColor(who){
+  if(who==='LOVELL')    return '#4fc3f7';
+  if(who==='SWIGERT')   return '#81c784';
+  if(who==='HAISE')     return S.crew.haise<50 ? '#ff8a65' : '#ffb74d';
+  if(who==='ALL THREE') return '#e8e8e8';
+  return null;
+}
+
+/* ======================================================================
+ * CREW CONDITION - hidden 0-100, starts 75, never shown. Comfort raises
+ * it, austerity grinds it, silence (expired timers) gouges it. It picks
+ * your ending, gates the hidden PC+2 option, and below 45 it sends you
+ * a burn-recheck crisis that confident crews never generate.
+ * ==================================================================== */
+function condAdj(d){ S.cond=clamp((S.cond===undefined?75:S.cond)+d,0,100); }
+/* which calls the crew feels - 'eventId:optionIndex': delta */
+const CONDMAP={
+  'powerdown:0':-12, 'powerdown:1':0, 'powerdown:2':8,
+  'water:0':-12,     'water:1':0,     'water:2':8,
+  'fever:0':8,       'fever:1':8,     'fever:2':-12,
+};
+/* the extra trajectory event a worn-down crew costs you */
+const RECHECK_EV={
+  id:'recheck', timer:35,
+  title:'FIDO - BURN SOLUTION IN DOUBT',
+  brief:'Swigert hand-ran the last midcourse arithmetic. He is cold, '+
+        'dehydrated, sleepless - and he knows exactly what a wrong digit '+
+        'costs at entry interface.\n\nSWIGERT: "Flight, I need to recheck '+
+        'this burn calculation. I\'m... I\'m not confident."\n\nFIDO can '+
+        're-verify against the ground solution. It costs time and power '+
+        'you wanted for the end of this.',
+  inact:'INACTION: fly the unverified numbers.',
+  options:[
+    {l:'RE-VERIFY AGAINST THE GROUND SOLUTION',
+     cost:'5 Ah, 30 minutes', gain:'corridor confidence restored', risk:'minimal',
+     d:'Run it twice. Houston checks the arithmetic line by line.',
+     fx(){ S.lmAh-=5; S.get+=1800;
+           log('Re-verification complete. There WAS a transposed digit. FIDO catches it. The corridor holds.','warn'); },
+     foot:'Exhausted crews make arithmetic errors - which is why the real mission read every burn pad up twice and read it back twice. The procedure existed because the failure mode was known.'},
+    {l:'FLY THE NUMBERS YOU HAVE',
+     cost:'nothing now', gain:'time and power banked', risk:'an unverified solution aimed at a 2.15° corridor',
+     d:'Trust the first pass from a man who told you not to.',
+     fx(){ S.angle+=(Math.random()*2-1)*0.3;
+           log('Unverified solution stands. FIDO\'s plot drifts off the centerline.','crit'); },
+     foot:'A transposed digit in a burn pad was one of the quiet ways this mission could have ended. Nobody would have known for two days.'},
+  ],
+  expire(){ S.angle+=(Math.random()*2-1)*0.3; log('No call. The unverified numbers stand.','crit'); },
 };
 
 /* ======================================================================
@@ -1385,24 +1588,20 @@ const PUZZLE = {
  * ==================================================================== */
 const TUTORIAL = {
   active:false, step:-1, left:0, iv:0,
-  STEP_SECS:15,
+  STEP_SECS:6,   // 4 x 6s = 24s worst case: the bang still lands inside 30
   steps:[
     {id:'g-power', title:'LM DESCENT BATTERIES',
-     txt:'2,181 ampere-hours - every watt the lifeboat will ever have. '+
-         'If this hits zero before the LM is cut loose, the crew rides home '+
-         'in a dead ship. Every system you leave on drains it.'},
+     txt:'2,181 ampere-hours. This is every watt the crew has until '+
+         'splashdown. Zero means silence.'},
     {id:'g-co2', title:'CO2 PARTIAL PRESSURE',
-     txt:'The crew\'s own exhaled breath, accumulating in the cabin. At 15 '+
-         'mmHg they\'re impaired; at 30 they die. The scrubbers were rated '+
-         'for 2 men for 2 days - you have 3 men and a 4-day ride.'},
+     txt:'Three men breathing in a box. Above 15 mmHg they start making '+
+         'mistakes. Above 30 mmHg they don\'t come home.'},
     {id:'g-water', title:'COOLING / POTABLE WATER',
-     txt:'The cruel one: this tank mostly cools the ELECTRONICS, not the '+
-         'crew. The sublimator boils it into space - the more amps you run, '+
-         'the faster it empties. Run dry and the ship cooks.'},
+     txt:'Six ounces per man per day. Lovell will lose 14 pounds before '+
+         'this is over.'},
     {id:'g-traj', title:'ENTRY FLIGHT PATH ANGLE',
-     txt:'The corridor home is -5.25° to -7.40° - just 2.15° wide, hit from '+
-         '240,000 miles out. Too shallow skips off the atmosphere; too steep '+
-         'burns up. Your burn calls keep the needle centered.'},
+     txt:'Miss the corridor by half a degree and they skip off the '+
+         'atmosphere into space, forever.'},
   ],
   start(){
     if(this.active) return;
@@ -1451,7 +1650,7 @@ const TUTORIAL = {
     $('tutbg').style.display='none';
     $('tuttip').style.display='none';
     S.tutorialDone=true;
-    log('GAUGE FAMILIARIZATION COMPLETE. ALL STATIONS REPORT GO. THE BOARD IS YOURS, FLIGHT.','sys');
+    log('YOU HAVE THE CONSOLE, FLIGHT.','sys');
     AudioEngine.confirm();
     Game.save();
   },
@@ -1509,11 +1708,12 @@ const UI = {
   render(){
     if(!S) return;
     $('getval').textContent = fmtGET(S.get);
-    // ~0.9 real min per remaining decision + entry sequence: the honest ETA
+    // coast time at the player's compression + ~45s of thinking per decision
+    const ts=S.tscale||800;
     const evLeft=MISSION.filter(e=>!S.fired[e.id]&&e.options).length;
-    const estMin=Math.max(1,Math.round(evLeft*0.9+(S.fired.entry?0:2)));
-    $('comp').textContent='TIME COMPRESSION ×'+Math.round(SIM.timeScale)
-      +'  ·  ≈'+estMin+' MIN REAL TIME TO SPLASHDOWN';
+    const estMin=Math.max(1,Math.round((SPLASH-S.get)/ts/60 + evLeft*0.75 + (S.fired.entry?0:1)));
+    $('comp').textContent='TIME COMPRESSION ×'+ts+' — ~'+estMin+' MIN TO SPLASHDOWN';
+    if(SCRUBBER.active) $('sc-co2').textContent=S.co2.toFixed(1);
 
     /* gauges */
     const G='#00FF41', A='#FF8C00', Rd='#FF2020', D='#003A0A';
@@ -1542,6 +1742,12 @@ const UI = {
     $('v-traj').textContent = S.angle.toFixed(2)+'°';
     const inC = S.angle<=-5.25 && S.angle>=-7.4;
     this.setGaugeClass('g-traj', (S.offCourse||!inC)?'crit':(Math.abs(S.angle+6.5)>0.6?'warn':''));
+
+    /* first crossing into the red gets called out on the loop */
+    this.callout('power', S.lmActive&&S.lmAh<300, 'TELMU: FLIGHT, LM BUS BELOW 300 AMPERE-HOURS. THAT IS THE RED LINE.');
+    this.callout('co2',   S.co2>=15, 'SURGEON: CO2 PAST 15 MMHG. THE CREW IS OFFICIALLY IMPAIRED. EVERY TASK UP THERE JUST GOT HARDER.');
+    this.callout('water', S.water<40, 'TELMU: WATER BELOW 40 POUNDS. WHEN THE TANK DIES, THE SUBLIMATOR DIES WITH IT.');
+    this.callout('traj',  S.fired.freereturn&&!inC&&!S.fired.entry, 'FIDO: ENTRY ANGLE IS OUT OF THE CORRIDOR. WE NEED A BURN, FLIGHT.');
 
     /* systems panel - rebuild only when content changes */
     let sh='';
@@ -1607,7 +1813,10 @@ const UI = {
     if(this.logDirty){
       const lb=$('logbody');
       lb.innerHTML=S.log.map(l=>{
-        if(l.cls==='radio') return '<div class="logline radio"><span class="lt">'+fmtGET(l.t)+'</span><span class="who">'+(l.who||'')+(l.who?': ':'')+'</span>'+l.txt+'</div>';
+        if(l.cls==='radio'){
+          const c=l.who?whoColor(l.who):null;
+          return '<div class="logline radio"><span class="lt">'+fmtGET(l.t)+'</span><span class="who"'+(c?' style="color:'+c+'"':'')+'>'+(l.who||'')+(l.who?': ':'')+'</span>'+l.txt+'</div>';
+        }
         return '<div class="logline '+l.cls+'"><span class="lt">'+fmtGET(l.t)+'</span>'+l.txt+'</div>';
       }).join('');
       lb.scrollTop=lb.scrollHeight;
@@ -1629,7 +1838,14 @@ const UI = {
   /* ---------------- decision overlay ---------------- */
   showDecision(ev){
     this.decision=ev; this.resolving=false;
+    /* options can hide behind conditions (e.g. crew condition) */
+    this.opts=(ev.options||[]).filter(o=>!o.cond||o.cond());
     $('overlay').style.display='flex';
+    /* the room reacts: console dims, the gauge on the line pulses */
+    document.body.classList.add('dimmed');
+    const hk=this.HITMAP[ev.id];
+    if(hk){ const g=$('g-'+hk); g.classList.add('attn');
+            setTimeout(()=>g.classList.remove('attn'),1700); }
     const d=$('decision');
     d.classList.toggle('crit-border', !!ev.crit);
     $('dtitle').textContent=ev.title;
@@ -1638,7 +1854,7 @@ const UI = {
     $('dinact').textContent=ev.inact||'';
     $('dfoot').style.display='none';
     const ops=$('dopts'); ops.innerHTML='';
-    (ev.options||[]).forEach((o,i)=>{
+    this.opts.forEach((o,i)=>{
       const b=document.createElement('button');
       b.className='opt';
       // uniform three-line readout: faster to compare under a countdown
@@ -1650,6 +1866,11 @@ const UI = {
       b.innerHTML='<span class="ol">&#9658;<span class="keycap">PRESS '+(i+1)+'</span>'+o.l+'</span>'+
         rows + (o.d?'<span class="od">'+o.d+'</span>':'');
       b.onclick=()=>this.choose(i);
+      /* hovering a call previews where it will land */
+      if(hk){
+        b.onmouseenter=()=>$('g-'+hk).classList.add('attn');
+        b.onmouseleave=()=>$('g-'+hk).classList.remove('attn');
+      }
       ops.appendChild(b);
     });
     // 45 seconds standard, 20 when the title is red. The room decides fast.
@@ -1667,10 +1888,12 @@ const UI = {
   },
   choose(i){
     const ev=this.decision; if(!ev || this.resolving) return;
-    const o=ev.options[i]; if(!o) return;
-    /* tactile commit: chosen option flashes white, the rest lock out,
-       confirm tone plays - then the consequence lands */
+    const o=(this.opts||ev.options)[i]; if(!o) return;
+    /* tactile commit: 50ms white pop, chosen option flashes, the rest
+       lock out, confirm tone plays - then the consequence lands */
     this.resolving=true;
+    const wf=$('wflash'); wf.classList.add('on');
+    setTimeout(()=>wf.classList.remove('on'),60);
     this.dEndsAt=0; $('dtimerwrap').style.display='none'; $('dtlabelrow').style.display='none';
     const btns=$('dopts').children;
     for(const b of btns) b.classList.add('dimmed');
@@ -1680,9 +1903,10 @@ const UI = {
     setTimeout(()=>{
       if(el){ el.classList.remove('flash'); el.classList.add('chosen'); }
       this.resolving=false;
-      if(ev.id==='puzzle'){ o.fx(); return; }   // puzzle redraws its own screen
       S.pendingEvent=null;
       o.fx();
+      const cd=CONDMAP[ev.id+':'+i];
+      if(cd!==undefined) condAdj(cd);          // the crew heard that call
       if(!S || S.ended || S.phase!=='play'){ this.closeDecision(); return; }
       if(o.foot) this.revealHistory(o.foot);
       else this.closeDecision();
@@ -1697,7 +1921,11 @@ const UI = {
     f.innerHTML='<b>HISTORICAL RECORD //</b> '+foot+
       '<button class="contbtn" onclick="UI.closeDecision()">&#9658; BACK TO THE BOARD</button>';
   },
-  closeDecision(){ this.decision=null; this.resolving=false; $('overlay').style.display='none'; },
+  closeDecision(){
+    this.decision=null; this.resolving=false; $('overlay').style.display='none';
+    document.body.classList.remove('dimmed');     // lights back to 100%
+    document.querySelectorAll('.gauge.attn').forEach(g=>g.classList.remove('attn'));
+  },
   /** post-choice historical footnote, shown as a follow-up card */
   showFootnote(txt){
     UI.showDecision({
@@ -1726,6 +1954,7 @@ const UI = {
       const label=(ev.inact||'default consequence applied')
         .replace(/^INACTION:\s*/i,'').replace(/\.+$/,'');
       log('FLIGHT — NO CALL RECEIVED. DEFAULTING TO: '+label.toUpperCase()+'. THIS IS ON YOU.','crit');
+      condAdj(-15);                 // the crew heard the silence too
       AudioEngine.alarmOn();
       setTimeout(()=>AudioEngine.alarmOff(),1600);
       document.body.classList.add('flicker');
@@ -1739,12 +1968,20 @@ const UI = {
   HITMAP:{explosion:'power',venting:'power',lifeboat:'power',powerdown:'power',
           freereturn:'traj',water:'water',co2warn:'co2',suncheck:'traj',
           pc2:'traj',drift:'traj',fever:'water',thump:'power',mcc5:'traj',
-          cmplan:'power',mcc7:'traj',smjett:null},
+          aaron:'power',recheck:'traj',mcc7:'traj',smjett:null},
   flashGauge(k){
     if(!k) return;
     const el=$('g-'+k); if(!el) return;
     el.classList.add('hitflash');
     setTimeout(()=>el.classList.remove('hitflash'),1900);
+  },
+  /** one-time red-line callout: gauge flashes, tone fires, log records */
+  callout(key, hit, txt){
+    if(!hit || !S || S.ended || S.fired['co_'+key]) return;
+    S.fired['co_'+key]=true;
+    log(txt,'crit');
+    AudioEngine.caution();
+    this.flashGauge(key);
   },
 };
 
@@ -1757,60 +1994,104 @@ const Game = {
 
   /* ---------- boot sequence: teletype ---------- */
   BOOT_LINES:[
-'MANNED SPACECRAFT CENTER - HOUSTON, TEXAS',
-'MISSION OPERATIONS CONTROL ROOM 2 ... CIRCUIT ENERGIZED',
+'NASA MANNED SPACECRAFT CENTER',
+'MISSION OPERATIONS CONTROL ROOM — MOCR 2',
+'═══════════════════════════════',
 '',
-'MISSION: APOLLO 13 (AS-508)',
-'CDR: JAMES A. LOVELL JR.    CMP: JOHN L. SWIGERT JR.    LMP: FRED W. HAISE JR.',
-'LAUNCH: APRIL 11 1970, 13:13 CST, LC-39A',
-'TARGET: FRA MAURO HIGHLANDS',
+'INITIALIZING FLIGHT DIRECTOR CONSOLE...',
 '',
-'CSM 109 "ODYSSEY"  ............. NOMINAL',
-'LM-7   "AQUARIUS"  ............. DOCKED / POWERED DOWN',
-'CRYO O2 TANK 1 ................. NOMINAL',
-'CRYO O2 TANK 2 ................. NOMINAL*',
+'MISSION: APOLLO 13 — AS-508',
+'COMMANDER: JAMES A. LOVELL JR.',
+'CM PILOT: JOHN L. SWIGERT JR.',
+'LM PILOT: FRED W. HAISE JR.',
+'LAUNCH: APRIL 11, 1970 — 19:13:00 UTC',
 '',
-'GET 055:52:00 - TRANSLUNAR COAST. 205,000 MILES FROM EARTH.',
-'CAPCOM HAS JUST REQUESTED A CRYO TANK STIR.',
+'CURRENT GET: 055:52:00',
 '',
-'FLIGHT DIRECTOR — YOU HAVE THE CONSOLE.',
+'LOADING MISSION DATA...',
+'BATTERY STATUS: 2,181 AH ████████████ NOMINAL',
+'CO2 LEVELS: 0.4 MMHG ████████████ NOMINAL',
+'WATER SUPPLY: 338 LBS ████████████ NOMINAL',
+'TRAJECTORY: NOMINAL',
+'',
+'ALL STATIONS — REPORT GO/NO-GO FOR MISSION...',
+'',
+'BOOSTER .................... GO',
+'RETRO ...................... GO',
+'FIDO ....................... GO',
+'GUIDANCE ................... GO',
+'SURGEON .................... GO',
+'CAPCOM ..................... GO',
+'',
+'FLIGHT DIRECTOR ............ GO',
+'',
+'TIME COMPRESSION SET TO ×800',
+'ESTIMATED TIME TO SPLASHDOWN: ~21 MIN',
+'',
+'[PRESS ANY KEY — YOU HAVE THE CONSOLE, FLIGHT]',
   ],
+  skipBoot:null,
   startBoot(){
     const saved=this.loadRaw();
     if(saved && saved.phase==='play'){
-      // typed header, then resume choice
+      // a saved mission gets the resume choice, not the full boot
       this.typeLines(this.BOOT_LINES.slice(0,2).concat(['','SAVED MISSION FOUND AT GET '+fmtGET(saved.get)]),
         ()=>{ $('resumewrap').style.display='block'; });
     } else {
-      this.typeLines(this.BOOT_LINES, ()=>{ $('initbtn').style.display='block'; });
+      // fresh start: full teletype, then any key energizes the room
+      this.typeLines(this.BOOT_LINES, ()=>this.armAnyKey());
     }
+  },
+  armAnyKey(){
+    const go=e=>{
+      document.removeEventListener('keydown',go);
+      document.removeEventListener('pointerdown',go);
+      Game.powerOn(false);
+    };
+    document.addEventListener('keydown',go);
+    document.addEventListener('pointerdown',go);
   },
   typeLines(lines, done){
     const el=$('boottext'); el.innerHTML='';
-    let li=0, ci=0, out='';
+    const charMs = innerWidth<768 ? 20 : 40;   // mobile boots twice as fast
+    let li=0, ci=0, out='', fin=false;
     const cur='<span class="cursor"></span>';
+    const finish=()=>{                          // any key skips the teletype
+      if(fin) return;
+      fin=true; Game.skipBoot=null;
+      out=lines.map(l=>l.replace(/</g,'&lt;')).join('\n')+'\n';
+      el.innerHTML=out+cur;
+      done();
+    };
+    this.skipBoot=finish;
     const step=()=>{
-      if(li>=lines.length){ el.innerHTML=out+cur; done(); return; }
+      if(fin) return;
+      if(li>=lines.length){ finish(); return; }
       const line=lines[li];
       if(ci<line.length){
         out+=line[ci]==='<'?'&lt;':line[ci];
         ci++;
         if(ci%2===0) AudioEngine.key();
         el.innerHTML=out+cur;
-        setTimeout(step, 14);
+        setTimeout(step, charMs);
       } else {
         out+='\n'; li++; ci=0;
         el.innerHTML=out+cur;
-        setTimeout(step, line===''?60:200);
+        setTimeout(step, line===''?120:500);
       }
     };
     step();
   },
   powerOn(resume){
     AudioEngine.init(); AudioEngine.resume();
+    this.skipBoot=null;
     if(resume){
       S=this.loadRaw();
-      // rebind prototypes lost in JSON (none needed - S is pure data)
+      /* older saves: backfill overhaul-era fields */
+      if(S.tscale===undefined) S.tscale=800;
+      if(S.cond===undefined)   S.cond=75;
+      if(!S.voiceFired) S.voiceFired={};
+      if(!S.pzUsed)     S.pzUsed=[];
       log('CONSOLE RE-ENERGIZED. RESUMING AT GET '+fmtGET(S.get),'sys');
     } else {
       localStorage.removeItem(this.SAVE_KEY);
@@ -1819,28 +2100,31 @@ const Game = {
       radio('CAPCOM','"13, we\'ve got one more item for you when you get a chance: we\'d like you to stir up your cryo tanks."');
       radio('SWIGERT','"Okay. Stand by."');
     }
+    SIM.timeScale=S.tscale;
     $('boot').style.display='none';
     $('console').style.display='grid';
     $('console').classList.add('fadein');   // the room comes up out of the dark
     UI.init();
-    // flight log folds away on small screens (and anywhere, harmlessly)
-    document.querySelector('#commlog h2').onclick=
-      ()=>$('commlog').classList.toggle('collapsed');
+    // every panel folds on tap - the mobile layout depends on it
+    document.querySelectorAll('.panel>h2').forEach(h=>{
+      h.onclick=()=>h.parentElement.classList.toggle('collapsed');
+    });
     this.lastT=performance.now();
     this.loop(this.lastT);
     AudioEngine.beep();
     /* reopen whatever was on the table when the tab closed */
     if(resume){
       if(S.pendingEvent){
-        const ev=MISSION.find(e=>e.id===S.pendingEvent);
+        const ev = S.pendingEvent==='recheck' ? RECHECK_EV
+                 : MISSION.find(e=>e.id===S.pendingEvent);
         if(ev && ev.options) UI.showDecision(ev);
       } else if(S.fired.puzzle && !S.mailbox){
-        PUZZLE.open();
+        SCRUBBER.begin(true);
       } else if(!S.tutorialDone && !S.fired.explosion){
         TUTORIAL.start();   // saved mid-walkthrough: pick it back up
       }
     } else {
-      TUTORIAL.start();     // once, before the first crisis fires
+      TUTORIAL.start();     // 24 seconds of gauges, then the bang
     }
   },
 
@@ -1853,23 +2137,32 @@ const Game = {
     /* mission clock holds while the gauge walkthrough is up */
     if(TUTORIAL.active){ UI.render(); return; }
 
-    /* adaptive time compression: the sim sprints between milestones so
-       the player is never idle for more than ~30 real seconds, and crawls
-       (x60) while a decision is on the table. Rates are per mission-hour,
-       so compression changes pacing, never outcomes. */
-    let target;
-    if(UI.decision) target=60;
-    else{
-      const nxt=Game.nextTrigger();
-      target=clamp((nxt-S.get)/30, 90, 3000);
-    }
-    SIM.timeScale=lerp(SIM.timeScale||90,target,0.08);
+    /* player-set compression (default ×800, [ and ] adjust, ×100-×3200).
+       The sim drops to ×60 while a decision or the scrubber build is up
+       so thinking doesn't eat the mission. All rates are per mission-
+       hour: compression changes pacing, never outcomes. */
+    const target=(UI.decision||SCRUBBER.active)?60:(S.tscale||800);
+    SIM.timeScale=lerp(SIM.timeScale||target,target,0.08);
 
     if(!S.ended){
       SIM.step(realDt*SIM.timeScale);
 
+      /* hidden crew-condition fallout */
+      if(S.cond<50 && !S.fired.surg50){ S.fired.surg50=true; AudioEngine.caution();
+        log('SURGEON: Flight — Haise\'s vitals are degrading faster than expected. He needs warmth and water.','warn'); }
+      if(S.cond<30 && !S.fired.surg30){ S.fired.surg30=true; AudioEngine.caution();
+        log('SURGEON: Flight — Haise is in serious condition. I need you to factor that in.','crit'); }
+      if(!UI.decision && !SCRUBBER.active && S.cond<45 && !S.fired.recheck
+         && S.get>=g(86,0,0) && S.get<ENTRY-7200){
+        S.fired.recheck=true;
+        radio('SWIGERT','"Flight, I need to recheck this burn calculation. I\'m... I\'m not confident."');
+        UI.showDecision(RECHECK_EV);
+        S.pendingEvent='recheck';
+        Game.save();
+      }
+
       /* fire timeline events */
-      if(!UI.decision){
+      if(!UI.decision && !SCRUBBER.active){
         for(const ev of MISSION){
           if(!S.fired[ev.id] && S.get>=ev.get){
             S.fired[ev.id]=true;
@@ -1881,32 +2174,22 @@ const Game = {
             break;
           }
         }
-        /* conditional triggers */
+        /* the mailbox: CO2 crossing 8 takes over the whole screen */
         if(!UI.decision && S.scrubBegunSat && !S.mailbox && S.co2>=8 && !S.fired.puzzle){
           S.fired.puzzle=true;
-          AudioEngine.caution();
-          radio('CAPCOM','"Aquarius, Houston. We\'d like you to start getting some materials together for the CO2 procedure."');
-          PUZZLE.open();
+          SCRUBBER.begin(false);
+          Game.save();
         }
         /* entry sequence */
         if(S.get>=ENTRY && !S.fired.entry){ S.fired.entry=true; Game.entrySequence(); }
       }
+      /* the crew, on the loop, between crises */
+      CREWVOICE.tick();
     }
     UI.tickTimer(now);
     UI.render();
     // autosave heartbeat
     if(!Game._sv || now-Game._sv>8000){ Game._sv=now; Game.save(); }
-  },
-  /** GET of the next thing that will demand attention (for pacing) */
-  nextTrigger(){
-    let t=SPLASH+1;
-    for(const ev of MISSION) if(!S.fired[ev.id]){ t=Math.min(t,ev.get); break; }
-    if(S.scrubBegunSat && !S.mailbox && !S.fired.puzzle && S.co2<8){
-      // when will CO2 hit 8? rate 0.8/hr
-      t=Math.min(t, S.get + Math.max(60,(8-S.co2)/0.8*3600));
-    }
-    if(!S.fired.entry) t=Math.min(t,ENTRY);
-    return t;
   },
 
   /* ---------- entry + endings ---------- */
@@ -1967,49 +2250,62 @@ const Game = {
       crew:['ALL STATIONS - NO RESPONSE FROM ODYSSEY','The spacecraft flew the entry perfectly. The drogues fired on time, the mains were three orange flowers over the Pacific, and the recovery swimmers opened the hatch on a crew that the cold, the thirst, and the bad air had finished days of work on. They were 40 minutes from the carrier.'],
     };
     const [t,body]=texts[cause]||texts.crew;
+    this.endVariant='LOSS';
     this.showEnding('bad','MISSION FAILURE',t,body,true);
   },
-  /** survival endings, graded */
+  /** survival endings - the variant is picked by hidden crew condition */
   end(){
     S.phase='ended';
     S.get=SPLASH;   // the clock reads splashdown, not entry interface
-    const avg=SIM.avgCrew(), worst=Math.min(S.crew.lovell,S.crew.swigert,S.crew.haise);
-    const tight=Math.abs(S.angle+6.5);
-    let grade,title,body,cls;
-    if(worst<35){
-      grade='PARTIAL'; cls='mid';
-      title='SPLASHDOWN - ONE CRITICAL';
-      body='Three chutes, on target, 142:54:41 GET. But the swimmers\' first call from the water is for a medevac: '+
-        (S.crew.haise===worst?'Fred Haise':S.crew.swigert===worst?'Jack Swigert':'Jim Lovell')+
-        ' comes out of the hatch unconscious - dehydration, hypothermia and the bad air finally collecting their bill.\n\n'+
-        'He will live. Barely. In this timeline, the line between "successful failure" and tragedy was about six more hours wide.\n\n'+
-        'Crew recovered by USS Iwo Jima. Mission status: crew survival with serious medical impact.';
-    } else if(avg>=62 && S.lmAh>=250 && S.water>=20 && tight<=0.45 && S.mailbox){
+    const cond=(S.cond===undefined?75:S.cond);
+    let grade,title,body,cls,quote;
+    if(cond>70){
       grade='PERFECT'; cls='good';
       title='SPLASHDOWN - TEXTBOOK';
+      quote='LOVELL: "Flight, I want you to know — we trusted you every step of the way. Every single step."';
       body='142:54:41 GET. Three chutes blossom exactly where FIDO drew the X - 3.5 miles from the USS Iwo Jima, the most accurate splashdown of the entire Apollo program. In the MOCR, cigars and tears. Kranz\'s shift cannot speak.\n\n'+
-        'You ran the board cleaner than history did: power banked, water banked, corridor centered'+(S.photos?', and the failure evidence on film':'')+
-        '.\n\nThe crew walks the carrier deck unaided'+(S.crew.haise<70?' - Haise on an IV within the hour, grinning anyway':'')+
-        '.\n\nNASA will call Apollo 13 "a successful failure." Tonight, this room calls it the finest hour of the program.';
-    } else {
+        'You brought them home with their strength intact'+(S.photos?', and the failure evidence on film':'')+
+        '. The crew walks the carrier deck unaided.\n\n'+
+        'NASA will call Apollo 13 "a successful failure." Tonight, this room calls it the finest hour of the program.\n\n'+quote;
+    } else if(cond>=45){
       grade='SURVIVAL'; cls='good';
       title='SPLASHDOWN - CREW RECOVERED';
+      quote='LOVELL: "We made it. Tell the guys we made it."';
       body='Three good chutes at 142:54:41 GET, southwest Pacific, recovery by USS Iwo Jima. The crew is weak, dehydrated and hypothermic - Haise with a fever that will hospitalize him - but they are ALIVE, and 40 minutes later they stand swaying on a carrier deck while the band plays.\n\n'+
         'It was not clean. It was not pretty. Neither was the real one.\n\n'+
-        'A successful failure, Flight. The only kind of failure worth having.';
+        'A successful failure, Flight. The only kind of failure worth having.\n\n'+quote;
+    } else {
+      grade='DAMAGED'; cls='mid';
+      title='SPLASHDOWN - MEDEVAC IN PROGRESS';
+      quote='SURGEON: "All three crew are alive. Haise is being medevaced immediately. He\'s going to be okay. But it was close, Flight. Very close."';
+      body='Three chutes, on target, 142:54:41 GET. But the swimmers\' first call from the water is for a medevac - the cold, the thirst and the bad air collected their bill from Fred Haise on the way down.\n\n'+
+        'He will live. In this timeline, the line between "successful failure" and tragedy was about six more hours wide.\n\n'+
+        'Crew recovered by USS Iwo Jima. Mission status: crew survival with serious medical impact.\n\n'+quote;
     }
-    /* the beat lands BEFORE the stats: three slow lines out of black,
-       and three full seconds on the one that matters */
+    this.endVariant=grade;
+    if(S.lovellInstinct){
+      this.endVariant=grade+' / LOVELL\'S INSTINCT';
+      body+='\n\nAnd one line in the books no procedure ever called for: a burn flown on a pilot\'s eye, because his Flight Director believed him.';
+    }
+    /* the beat. black, eight lines, five full seconds each on the two
+       that matter, then the variant quote. nothing else moves. */
     const fin=$('finale');
     fin.style.display='flex';
-    ['fl1','fl2','fl3'].forEach(id=>$(id).classList.remove('lit'));
-    setTimeout(()=>$('fl1').classList.add('lit'), 300);
-    setTimeout(()=>{ $('fl2').classList.add('lit'); AudioEngine.beep(); }, 2800);
-    setTimeout(()=>{ $('fl3').classList.add('lit'); AudioEngine.splash(); }, 5400);
-    setTimeout(()=>{
+    for(let i=0;i<8;i++) $('fn'+i).classList.remove('lit');
+    $('fn7').textContent=quote;
+    const t=(ms,fn)=>setTimeout(fn,ms);
+    t(2000, ()=>$('fn0').classList.add('lit'));                              // fade to black: 2s
+    t(5000, ()=>$('fn1').classList.add('lit'));
+    t(8000, ()=>$('fn2').classList.add('lit'));
+    t(10000,()=>{ $('fn3').classList.add('lit'); AudioEngine.beep(); });     // PARACHUTES
+    t(12000,()=>$('fn4').classList.add('lit'));                              // IMPACT
+    t(15000,()=>$('fn5').classList.add('lit'));                              // THREE MEN.
+    t(20000,()=>{ $('fn6').classList.add('lit'); AudioEngine.splash(); });   // (5s) ALIVE.
+    t(25000,()=>$('fn7').classList.add('lit'));                              // (5s) the quote
+    t(29000,()=>{                                                            // (4s) debrief
       fin.style.display='none';
       this.showEnding(cls,grade+' - MISSION COMPLETE',title,body,false);
-    }, 9400);
+    });
   },
   showEnding(cls,tag,title,body,failed){
     this.lastFailed=failed;
@@ -2040,6 +2336,14 @@ const Game = {
       rows.map(r=>'<tr><td>'+r[0]+'</td><td class="you">'+r[1]+'</td><td class="real">'+r[2]+'</td></tr>').join('');
     $('efoot').innerHTML='<b>WHAT WAS REAL IN THIS SIMULATION:</b> every GET timestamp, the 2,181 Ah battery total, the 12-amp power-down, the 6 oz water ration, the sublimator drinking the water budget, the square-cartridge crisis and the exact mailbox parts list, the sun-check alignment, the hand-flown 14-second MCC-5 on the Earth\'s terminator, John Aaron\'s reversed power-up sequence, the LM charging the CM backwards through the umbilical, the 87-second-long blackout, and the words. Especially the words.<br><br>'+
       'The Review Board traced the explosion to damaged thermostat wiring inside O2 Tank 2 - the tank had been dropped, then overheated during a ground test weeks before launch. The bomb was installed before the rocket ever flew. Nobody in this room ever had a chance to prevent it. They could only answer it.';
+    /* stats fade in slowly; then the transmit button; then the invitation */
+    const stages=['etext','espeech','debrief','efoot'];
+    stages.forEach(id=>{ const el=$(id); el.classList.add('stage'); el.classList.remove('lit'); });
+    $('sharebtn').style.display='none';
+    $('flybtn').style.display='none';
+    setTimeout(()=>stages.forEach(id=>$(id).classList.add('lit')),200);
+    setTimeout(()=>{ $('sharebtn').style.display='inline-block'; },2900);
+    setTimeout(()=>{ $('flybtn').style.display='inline-block'; },4000);
   },
 
   /* ---------- persistence ---------- */
@@ -2066,18 +2370,31 @@ const Game = {
   /** mission report to clipboard - personal, competitive, real numbers */
   shareReport(){
     const alive=!this.lastFailed;
+    const cond=(S.cond===undefined?75:S.cond);
+    const cdesc= !alive    ? 'LOVELL SAID YOU DID YOUR BEST. HE MEANT IT KINDLY.'
+      : cond>70  ? 'CREW CALLED YOU THE BEST FLIGHT DIRECTOR IN NASA HISTORY'
+      : cond>=50 ? 'CREW MADE IT HOME. BARELY SPEAKING TO YOU.'
+      : cond>=30 ? 'HAISE SPENT TWO WEEKS IN HOSPITAL. HE DOESN\'T BLAME YOU. MUCH.'
+      :            'LOVELL SAID YOU DID YOUR BEST. HE MEANT IT KINDLY.';
     const txt=
-      (alive?'I saved Apollo 13 as Flight Director.':'I lost Apollo 13 as Flight Director.')+'\n'+
-      'Power remaining: '+Math.round(clamp(S.lmAh,0,2181)/2181*100)+'% | CO2 peak: '+
-      S.peakCo2.toFixed(1)+'mmHg | Crew: '+(alive?'ALIVE':'LOST')+'\n'+
-      'Every number is real NASA data. Can you do better?\n'+
+      'APOLLO 13 DEBRIEF — MISSION CRITICAL\n'+
+      '═══════════════════════\n'+
+      'FLIGHT DIRECTOR: '+(alive?'CREW RECOVERED':'CREW LOST')+'\n'+
+      'POWER AT SPLASHDOWN: '+Math.round(clamp(S.lmAh,0,2181)/2181*100)+'%\n'+
+      'PEAK CO2: '+S.peakCo2.toFixed(1)+' mmHg\n'+
+      'CREW CONDITION: '+cdesc+'\n'+
+      'ENDING: '+(this.endVariant||'CLASSIFIED')+'\n'+
+      '═══════════════════════\n'+
+      'All numbers are real NASA data.\n'+
+      'Every crisis event happened.\n'+
+      'Can you bring them home?\n'+
       'https://prajith-vishnu.github.io/apollo13-mission-critical\n'+
       '#Stardance #HackClub #Apollo13';
     const done=()=>{
       const b=$('sharebtn');
-      b.textContent='COPIED TO CLIPBOARD ✓';
+      b.textContent='TRANSMITTED ✓ — ON YOUR CLIPBOARD';
       AudioEngine.success();
-      setTimeout(()=>b.textContent='SHARE MISSION REPORT',2500);
+      setTimeout(()=>b.textContent='TRANSMIT MISSION REPORT',2500);
     };
     const fallback=()=>{
       const ta=document.createElement('textarea');
@@ -2097,13 +2414,25 @@ const Game = {
   },
 };
 
-/* keyboard: 1-4 answer the open decision - controllers didn't use mice */
+/* keyboard: 1-4 answer the open decision - controllers didn't use mice.
+   [ and ] bend time. 1-6 place scrubber parts. any key skips the boot. */
 document.addEventListener('keydown',e=>{
   if(e.repeat) return;
+  if(Game.skipBoot && $('boot').style.display!=='none'){
+    const f=Game.skipBoot; Game.skipBoot=null; f(); return;
+  }
   if(TUTORIAL.active && (e.key==='Enter'||e.key===' ')){ TUTORIAL.next(); return; }
+  if(S && S.phase==='play' && (e.key==='['||e.key===']')){
+    S.tscale=clamp(e.key===']'?(S.tscale||800)*2:(S.tscale||800)/2,100,3200);
+    log('TIME COMPRESSION ×'+S.tscale,'sys');
+    AudioEngine.key(); return;
+  }
+  if(SCRUBBER.active && !SCRUBBER.lock && e.key>='1' && e.key<='6'){
+    const c=SCRUBBER.CARDS[+e.key-1]; if(c) SCRUBBER.pick(c.id); return;
+  }
   if(UI.decision && !UI.resolving && e.key>='1' && e.key<='4'){
     const i=+e.key-1;
-    if(UI.decision.options && UI.decision.options[i]) UI.choose(i);
+    if(UI.opts && UI.opts[i]) UI.choose(i);
   }
 });
 /* init audio on first interaction anywhere (autoplay policy) */
