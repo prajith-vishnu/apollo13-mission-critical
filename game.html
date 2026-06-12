@@ -324,6 +324,22 @@ body::after{
 /* compression readout */
 #comp{font-size:9px;color:var(--amb);letter-spacing:1px;}
 
+/* ========================= TUTORIAL OVERLAY ============================ */
+#tutbg{display:none;position:fixed;inset:0;z-index:8000;background:rgba(0,0,0,.78);}
+.gauge.tut-hl{position:relative;z-index:8001;background:#000;
+  box-shadow:0 0 0 2px var(--grn),0 0 26px rgba(0,255,65,.55);}
+#tuttip{display:none;position:fixed;z-index:8002;width:min(300px,calc(100vw - 24px));
+  border:1px solid var(--grn);background:#000;padding:10px 12px;
+  box-shadow:0 0 24px rgba(0,255,65,.3);}
+#tuttip h4{font-size:11px;letter-spacing:2px;margin-bottom:6px;color:var(--grn);}
+#tuttip p{font-size:11px;line-height:1.6;color:var(--grn);margin-bottom:8px;}
+#tuttip .tut-meta{display:flex;justify-content:space-between;align-items:center;gap:8px;}
+#tuttip .tut-step{font-size:9px;letter-spacing:1px;color:var(--grn-mid);}
+#tutnext{font-family:inherit;font-size:10px;font-weight:700;letter-spacing:1px;
+  background:transparent;border:1px solid var(--grn);color:var(--grn);
+  padding:4px 10px;cursor:pointer;}
+#tutnext:hover{background:var(--grn);color:#000;}
+
 /* ============================== MOBILE ================================= */
 #commlog h2{cursor:pointer;}
 #commlog.collapsed .pbody{display:none;}
@@ -445,6 +461,17 @@ body::after{
     <div class="inact" id="dinact"></div>
     <div id="dopts"></div>
     <div class="foot" id="dfoot" style="display:none"></div>
+  </div>
+</div>
+
+<!-- ========================= TUTORIAL OVERLAY ========================== -->
+<div id="tutbg"></div>
+<div id="tuttip">
+  <h4 id="tut-title"></h4>
+  <p id="tut-txt"></p>
+  <div class="tut-meta">
+    <span class="tut-step" id="tut-count"></span>
+    <button id="tutnext" onclick="TUTORIAL.next()">NEXT &#9658;</button>
   </div>
 </div>
 
@@ -647,6 +674,7 @@ function freshState(){
     crew: { lovell:100, swigert:100, haise:100 },
     haiseFever: false,
     /* bookkeeping */
+    tutorialDone: false,      // gauge walkthrough shown before first crisis
     fired: {},                // event id -> true
     valvesClosed: false,
     cmPowerPlan: 'none',      // aaron | standard | rushed
@@ -1350,6 +1378,89 @@ const PUZZLE = {
 };
 
 /* ======================================================================
+ * TUTORIAL - a single 60-second walk of the four gauges, run once
+ * before the first crisis fires. The mission clock holds while it is
+ * up (the sim does not step), then releases - pacing and difficulty
+ * are untouched. 4 steps x 15 s auto-advance; NEXT skips ahead.
+ * ==================================================================== */
+const TUTORIAL = {
+  active:false, step:-1, left:0, iv:0,
+  STEP_SECS:15,
+  steps:[
+    {id:'g-power', title:'LM DESCENT BATTERIES',
+     txt:'2,181 ampere-hours - every watt the lifeboat will ever have. '+
+         'If this hits zero before the LM is cut loose, the crew rides home '+
+         'in a dead ship. Every system you leave on drains it.'},
+    {id:'g-co2', title:'CO2 PARTIAL PRESSURE',
+     txt:'The crew\'s own exhaled breath, accumulating in the cabin. At 15 '+
+         'mmHg they\'re impaired; at 30 they die. The scrubbers were rated '+
+         'for 2 men for 2 days - you have 3 men and a 4-day ride.'},
+    {id:'g-water', title:'COOLING / POTABLE WATER',
+     txt:'The cruel one: this tank mostly cools the ELECTRONICS, not the '+
+         'crew. The sublimator boils it into space - the more amps you run, '+
+         'the faster it empties. Run dry and the ship cooks.'},
+    {id:'g-traj', title:'ENTRY FLIGHT PATH ANGLE',
+     txt:'The corridor home is -5.25° to -7.40° - just 2.15° wide, hit from '+
+         '240,000 miles out. Too shallow skips off the atmosphere; too steep '+
+         'burns up. Your burn calls keep the needle centered.'},
+  ],
+  start(){
+    if(this.active) return;
+    this.active=true;
+    $('tutbg').style.display='block';
+    this.show(0);
+    this.iv=setInterval(()=>{
+      if(--TUTORIAL.left<=0) TUTORIAL.next();
+      else $('tut-count').textContent='AUTO-ADVANCE '+TUTORIAL.left+'S';
+    },1000);
+  },
+  show(i){
+    this.step=i; this.left=this.STEP_SECS;
+    const st=this.steps[i];
+    document.querySelectorAll('.gauge.tut-hl').forEach(g=>g.classList.remove('tut-hl'));
+    const el=$(st.id);
+    el.classList.add('tut-hl');
+    el.scrollIntoView({block:'center'});
+    $('tut-title').textContent='GAUGE '+(i+1)+'/4 — '+st.title;
+    $('tut-txt').textContent=st.txt;
+    $('tut-count').textContent='AUTO-ADVANCE '+this.left+'S';
+    $('tutnext').innerHTML = i===this.steps.length-1 ? 'BEGIN MISSION &#9658;' : 'NEXT &#9658;';
+    this.place(el);
+  },
+  /** pin the tooltip under (or over) the highlighted gauge, on-screen */
+  place(el){
+    const r=el.getBoundingClientRect(), tip=$('tuttip');
+    tip.style.display='block';
+    const tw=tip.offsetWidth, th=tip.offsetHeight, m=10;
+    let top=r.bottom+m;
+    if(top+th>innerHeight-m) top=r.top-th-m;
+    if(top<m) top=m;
+    const left=clamp(r.left+r.width/2-tw/2, m, innerWidth-tw-m);
+    tip.style.top=top+'px'; tip.style.left=left+'px';
+  },
+  next(){
+    if(!this.active) return;
+    AudioEngine.beep();
+    if(this.step>=this.steps.length-1) this.finish();
+    else this.show(this.step+1);
+  },
+  finish(){
+    clearInterval(this.iv);
+    this.active=false;
+    document.querySelectorAll('.gauge.tut-hl').forEach(g=>g.classList.remove('tut-hl'));
+    $('tutbg').style.display='none';
+    $('tuttip').style.display='none';
+    S.tutorialDone=true;
+    log('GAUGE FAMILIARIZATION COMPLETE. ALL STATIONS REPORT GO. THE BOARD IS YOURS, FLIGHT.','sys');
+    AudioEngine.confirm();
+    Game.save();
+  },
+};
+window.addEventListener('resize',()=>{
+  if(TUTORIAL.active && TUTORIAL.step>=0) TUTORIAL.place($(TUTORIAL.steps[TUTORIAL.step].id));
+});
+
+/* ======================================================================
  * UI - rendering. Gauges are drawn as period analog meters on canvas.
  * ==================================================================== */
 const UI = {
@@ -1725,7 +1836,11 @@ const Game = {
         if(ev && ev.options) UI.showDecision(ev);
       } else if(S.fired.puzzle && !S.mailbox){
         PUZZLE.open();
+      } else if(!S.tutorialDone && !S.fired.explosion){
+        TUTORIAL.start();   // saved mid-walkthrough: pick it back up
       }
+    } else {
+      TUTORIAL.start();     // once, before the first crisis fires
     }
   },
 
@@ -1735,6 +1850,8 @@ const Game = {
     const realDt=Math.min(0.1,(now-Game.lastT)/1000);
     Game.lastT=now;
     if(!S || S.phase!=='play'){ UI.render(); return; }
+    /* mission clock holds while the gauge walkthrough is up */
+    if(TUTORIAL.active){ UI.render(); return; }
 
     /* adaptive time compression: the sim sprints between milestones so
        the player is never idle for more than ~30 real seconds, and crawls
@@ -1983,6 +2100,7 @@ const Game = {
 /* keyboard: 1-4 answer the open decision - controllers didn't use mice */
 document.addEventListener('keydown',e=>{
   if(e.repeat) return;
+  if(TUTORIAL.active && (e.key==='Enter'||e.key===' ')){ TUTORIAL.next(); return; }
   if(UI.decision && !UI.resolving && e.key>='1' && e.key<='4'){
     const i=+e.key-1;
     if(UI.decision.options && UI.decision.options[i]) UI.choose(i);
